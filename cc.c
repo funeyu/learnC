@@ -104,25 +104,23 @@ Ast *read_prim(void) {
 }
 
 
-Ast *make_ast(*ast) {
+Ast *make_ast_up(*ast) {
 	skip_space();
 
 	int c = getc(stdin);
+    char *type;
 	if(c == "(") {
-		Ast *left = read_prim();
-		ast->left = left;
-	} else if(c == ")") {
+		*type = read_prim();
+	} else if(c == EOF) {
 		return ast;
-	} else {
-		Ast *a = read_prim();
-		if(ast->left == NULL)
-			ast->left = a;
-		else 
-			ast->right = a;
-	}
+	} 
 
-	make_ast()
+	return make_ast_up(make_ast_op(*type, read_prim(), read_prim()))
 }
+
+Ast *make_ast_down(*ast) {
+
+} 
 
 void print_ast(Ast *ast) {             
 	switch(ast->type) {

@@ -136,7 +136,6 @@ Ast *make_ast_up(Ast *ast) {
         ungetc(next_op, stdin);
         return make_ast_up(make_ast_op(op, ast, right));
     } else {
-        printf("here\n");
         ungetc(next_op, stdin);
         return make_ast_up(make_ast_op(op, ast, make_ast_up(right)));
     }

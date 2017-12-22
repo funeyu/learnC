@@ -65,6 +65,7 @@ Ast *read_number(int n) {
     for(;;) {
         int c = getc(stdin);
         if(!isdigit(c)) {
+            ungetc(c, stdin);
             return make_ast_int(n);
         }
 
@@ -78,55 +79,55 @@ Ast *read_string(void) {
     for(;;) {
         int c = getc(stdin);
         if(c == EOF)
-            perror("unterminated string");
+           printf("unterminated string");
         if(c == '"')
             break;
         buf[i++] = c;
         if(i == BUFLEN -1) {
-            perror("string too long");
+           printf("string too long");
         }
     }
 
     return make_ast_str(buf);
 }
+
 Ast *read_prim(void) {
     int c = getc(stdin);
     if (isdigit(c)) {
+        printf("ccc");
         return read_number(c - '0');
     } else if (c == '"') {
         return read_string();
     } else if (c == EOF) {
-        perror("Error printed by perror");
+       printf("Error printed byprintf");
     }
 
-    perror("exit(1);");
+    printf("exit(1);");
     exit(1);
 }
 
 
-Ast *make_ast_up(*ast) {
-	skip_space();
-
-	int c = getc(stdin);
-    char *type;
-	if(c == "(") {
-		*type = read_prim();
-	} else if(c == EOF) {
-		return ast;
-	} 
-
-	return make_ast_up(make_ast_op(*type, read_prim(), read_prim()))
+Ast *make_ast_up(Ast *ast) {
+    skip_space();
+    int c = getc(stdin);
+    if (c == EOF)
+      return ast;
+    int op;
+    if (c == '+') {
+        op = AST_OP_PLUS;
+    }
+    else if (c == '-') {
+        op = AST_OP_MINUS;
+    }
+    Ast *right = read_prim();
+    return make_ast_up(make_ast_op(op, ast, right));
 }
-
-Ast *make_ast_down(*ast) {
-
-} 
 
 void print_ast(Ast *ast) {             
 	switch(ast->type) {
 		case AST_OP_PLUS:
 			printf("(+ ");
-			goto print_op;
+			goto printf_op;
 		case AST_OP_MINUS:
 			printf("(- ");
 		printf_op:
@@ -139,23 +140,20 @@ void print_ast(Ast *ast) {
 			printf("%d", ast->ival);
 			break;
 		case AST_STR:
-			printf(ast->sval);
+			printf("%s", ast->sval);
 			break;
 		default:
-			perror("should not reach here!")
+		printf("should not reach here!");
 
 	}
 }
 
 int main(int argc, char **arg) {
-	int c = getc(stdin);
-	if(c == "(") {
-		Ast left = read_prim();
-	}
-    printf("dd is %d \n", argc);
-    printf("here is: %s", arg[1]);
-    printf("getc : %d \n", isdigit(getc(stdin)));
 
-    char *input = "(+ (- ( + 1 2) 3) 4)";
+    Ast *left = read_prim();
+    Ast *r = make_ast_up(left);
+
+    print_ast(r);
+
     return 0;
 }

@@ -6,14 +6,12 @@
 
 #define BUFLEN 256
 enum {
-    AST_OP_PLUS,
-    AST_OP_MINUS,
     AST_INT,
     AST_STR
 };
 
 typedef struct Ast {
-    int type;
+    char type;
     union {
         int ival;
         char *sval;
@@ -28,7 +26,7 @@ void emit_intexpr(Ast *ast);
 Ast *read_string(void);
 Ast *read_expr(void);
 
-Ast *make_ast_op(int type, Ast *left, Ast *right) {
+Ast *make_ast_op(char type, Ast *left, Ast *right) {
     Ast *r = malloc(sizeof(Ast));
     r->type = type;
     r->left = left;
@@ -94,7 +92,6 @@ Ast *read_string(void) {
 Ast *read_prim(void) {
     int c = getc(stdin);
     if (isdigit(c)) {
-        printf("ccc");
         return read_number(c - '0');
     } else if (c == '"') {
         return read_string();
@@ -114,10 +111,16 @@ Ast *make_ast_up(Ast *ast) {
       return ast;
     int op;
     if (c == '+') {
-        op = AST_OP_PLUS;
+        op = '+';
     }
     else if (c == '-') {
-        op = AST_OP_MINUS;
+        op = '-';
+    }
+    else if (c == '*') {
+        op = '*';
+    }
+    else if (c == '/') {
+        op = '/';
     }
     Ast *right = read_prim();
     return make_ast_up(make_ast_op(op, ast, right));
@@ -125,11 +128,16 @@ Ast *make_ast_up(Ast *ast) {
 
 void print_ast(Ast *ast) {             
 	switch(ast->type) {
-		case AST_OP_PLUS:
+		case '+':
 			printf("(+ ");
 			goto printf_op;
-		case AST_OP_MINUS:
+		case '-':
 			printf("(- ");
+        case '*':
+            printf("(* ");
+            goto printf_op;
+        case '/':
+            printf("(/ ");
 		printf_op:
 			print_ast(ast->left);
 			printf(" ");

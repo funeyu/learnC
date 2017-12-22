@@ -71,7 +71,7 @@ Ast *read_number(int n) {
     }
 }
 
-Ast *read_string(void) {
+Ast *read_string(void) { 
     char *buf = malloc(BUFLEN);
     int i = 0;
     for(;;) {
@@ -103,6 +103,14 @@ Ast *read_prim(void) {
     exit(1);
 }
 
+int get_priority(int operator) {
+    if(operator == '+' || operator == '-')
+        return 1;
+    else if(operator == '/' || operator == '*') {
+        return 2;
+    } 
+    return 0;
+}
 
 Ast *make_ast_up(Ast *ast) {
     skip_space();
@@ -123,7 +131,15 @@ Ast *make_ast_up(Ast *ast) {
         op = '/';
     }
     Ast *right = read_prim();
-    return make_ast_up(make_ast_op(op, ast, right));
+    int next_op = getc(stdin);
+    if (next_op == EOF || get_priority(op) >= get_priority(next_op)) {
+        ungetc(next_op, stdin);
+        return make_ast_up(make_ast_op(op, ast, right));
+    } else {
+        printf("here\n");
+        ungetc(next_op, stdin);
+        return make_ast_up(make_ast_op(op, ast, make_ast_up(right)));
+    }
 }
 
 void print_ast(Ast *ast) {             

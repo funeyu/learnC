@@ -6,9 +6,11 @@
 #include <string.h>
 
 #define BUFLEN 256
+#define MAX_ARGS 6
 enum {
     AST_INT,
     AST_SYM,
+    AST_FUNCALL,
 };
 
 typedef struct Var {
@@ -26,6 +28,11 @@ typedef struct Ast {
             struct Ast *left;
             struct Ast *right;
         };
+        struct {
+            char *fname;
+            int nargs;
+            struct Ast **args;
+        };
     };
 } Ast;
 
@@ -33,6 +40,7 @@ Var *vars = NULL;
 
 void emit_intexpr(Ast *ast);
 Ast *read_symbol(char c);
+Ast *read_ident_or_func(char c);
 Ast *read_expr(void);
 
 Ast *make_ast_op(char type, Ast *left, Ast *right) {
@@ -69,8 +77,7 @@ void skip_space(void) {
 }
 
 Var *find_var(char *name) {
-    Var *v = vars;
-    for(; v; v = v->next) {
+    for(Var *v = vars; v; v = v->next) {
         if(!strcmp(name, v->name)) {
             return v;
         }
@@ -102,11 +109,11 @@ Ast *read_number(int n) {
 
 
 Ast *read_prim(void) {
-    int c = getc(stdin);
+    char c = getc(stdin);
     if (isdigit(c)) {
         return read_number(c - '0');
     } else if (isalpha(c)) {
-        return read_symbol(c);
+        return read_ident_or_func(c);
     } else if (c == EOF) {
         return NULL;
     }
@@ -115,23 +122,70 @@ Ast *read_prim(void) {
     exit(1);
 }
 
-Ast *read_symbol(char c) {
+char *read_ident(char c) {
     char *buf = malloc(BUFLEN);
     buf[0] = c;
     int i = 1;
     for(;;) {
         int c = getc(stdin);
-        if(!isalpha(c)) {
+        if(!isalnum(c)) {
             ungetc(c, stdin);
             break;
         }
         buf[i++] = c;
         if(i == BUFLEN -1)
-            perror("Symbol too long");
+            perror("Identifier too long");
     }
     buf[i] = '\0';
-    Var *v = find_var(buf);
-    if(!v) v = make_var(buf);
+    return buf;
+}
+
+Ast * make_arg(char c) {
+    char *name = read_ident(c);
+    Var *v = make_var(name);
+    return make_ast_sym(v);
+}
+
+Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_FUNCALL;
+    r->fname = fname;
+    r->nargs = nargs;
+    r->args = args;
+
+    return r;
+}
+
+Ast *read_func_args(char *fname) {
+    Ast **args = malloc(sizeof(Ast*) * (MAX_ARGS + 1));
+    int i = 0, nargs = 0;
+    for (; i < MAX_ARGS; i ++) {
+        skip_space();
+        char c = getc(stdin);
+        if(c == ')') break;
+        ungetc(c, stdin);
+        args[i] = make_arg(c);
+        nargs++;
+        c = getc(stdin);
+        if(c == ',') skip_space();
+        else if(c == ')') break;
+        else perror("unexcepted character");
+    }
+
+    return make_ast_funcall(fname, nargs, args);
+}
+
+Ast *read_ident_or_func(char c) {
+    char *name = read_ident(c);
+    skip_space();
+    char c2 = getc(stdin);
+    if(c2 == '(') { // 这里形如：'(a,b,c,d)', 说明是function
+        return read_func_args(name);
+    }
+
+    ungetc(c2, stdin);
+    Var *v = find_var(name);
+    if(!v) v = make_var(name);
     return make_ast_sym(v);
 }
 
@@ -145,8 +199,7 @@ int get_priority(char op) {
             return 3;
         default:
             return -1;
-    }
-   
+    } 
 }
 
 Ast *make_ast_up(Ast *ast) {
@@ -196,6 +249,15 @@ void print_ast(Ast *ast) {
             printf("(/ ");
         case '=':
             printf("(=");
+        case AST_FUNCALL:
+            printf("%s(", ast->fname);
+            for (int i = 0; ast->args[i]; i ++) {
+                print_ast(ast->args[i]);
+                if(ast->args[i + 1])
+                    printf(",");
+            }
+            printf(")");
+            break;
 		printf_op:
 			print_ast(ast->left);
 			printf(" ");
@@ -209,7 +271,7 @@ void print_ast(Ast *ast) {
 			printf("%s", ast->var->name);
 			break;
 		default:
-		printf("should not reach here!");
+		  printf("should not reach here!");
 
 	}
 }

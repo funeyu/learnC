@@ -3,18 +3,25 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <string.h>
 
 #define BUFLEN 256
 enum {
     AST_INT,
-    AST_STR
+    AST_SYM,
 };
+
+typedef struct Var {
+    char *name;
+    int pos;
+    struct Var *next;
+} Var;
 
 typedef struct Ast {
     char type;
     union {
         int ival;
-        char *sval;
+        Var *var;
         struct {
             struct Ast *left;
             struct Ast *right;
@@ -22,8 +29,10 @@ typedef struct Ast {
     };
 } Ast;
 
+Var *vars = NULL;
+
 void emit_intexpr(Ast *ast);
-Ast *read_string(void);
+Ast *read_symbol(char c);
 Ast *read_expr(void);
 
 Ast *make_ast_op(char type, Ast *left, Ast *right) {
@@ -42,10 +51,10 @@ Ast *make_ast_int(int val) {
     return r;
 }
 
-Ast *make_ast_str(char *str) {
+Ast *make_ast_sym(Var *var) {
     Ast *r = malloc(sizeof(Ast));
-    r->type = AST_STR;
-    r->sval = str;
+    r->type = AST_SYM;
+    r->var = var;
     return r;
 }
 
@@ -57,6 +66,26 @@ void skip_space(void) {
     	ungetc(c, stdin);
     	return;
     }
+}
+
+Var *find_var(char *name) {
+    Var *v = vars;
+    for(; v; v = v->next) {
+        if(!strcmp(name, v->name)) {
+            return v;
+        }
+    }
+
+    return NULL;
+}
+
+Var *make_var(char *name) {
+    Var *v = malloc(sizeof(Var));
+    v->name = name;
+    v->pos = vars ? vars->pos + 1 : 1;
+    v->next = vars;
+    vars = v;
+    return v;
 }
 
 Ast *read_number(int n) {
@@ -71,45 +100,53 @@ Ast *read_number(int n) {
     }
 }
 
-Ast *read_string(void) { 
-    char *buf = malloc(BUFLEN);
-    int i = 0;
-    for(;;) {
-        int c = getc(stdin);
-        if(c == EOF)
-           printf("unterminated string");
-        if(c == '"')
-            break;
-        buf[i++] = c;
-        if(i == BUFLEN -1) {
-           printf("string too long");
-        }
-    }
-
-    return make_ast_str(buf);
-}
 
 Ast *read_prim(void) {
     int c = getc(stdin);
     if (isdigit(c)) {
         return read_number(c - '0');
-    } else if (c == '"') {
-        return read_string();
+    } else if (isalpha(c)) {
+        return read_symbol(c);
     } else if (c == EOF) {
-       printf("Error printed byprintf");
+        return NULL;
     }
 
     printf("exit(1);");
     exit(1);
 }
 
-int get_priority(int operator) {
-    if(operator == '+' || operator == '-')
-        return 1;
-    else if(operator == '/' || operator == '*') {
-        return 2;
-    } 
-    return 0;
+Ast *read_symbol(char c) {
+    char *buf = malloc(BUFLEN);
+    buf[0] = c;
+    int i = 1;
+    for(;;) {
+        int c = getc(stdin);
+        if(!isalpha(c)) {
+            ungetc(c, stdin);
+            break;
+        }
+        buf[i++] = c;
+        if(i == BUFLEN -1)
+            perror("Symbol too long");
+    }
+    buf[i] = '\0';
+    Var *v = find_var(buf);
+    if(!v) v = make_var(buf);
+    return make_ast_sym(v);
+}
+
+int get_priority(char op) {
+    switch(op) {
+        case '=':
+            return 1;
+        case '+': case '-':
+            return 2;
+        case '*': case '/':
+            return 3;
+        default:
+            return -1;
+    }
+   
 }
 
 Ast *make_ast_up(Ast *ast) {
@@ -130,6 +167,10 @@ Ast *make_ast_up(Ast *ast) {
     else if (c == '/') {
         op = '/';
     }
+    else if(c == '=') {
+        op = '=';
+    }
+
     Ast *right = read_prim();
     int next_op = getc(stdin);
     if (next_op == EOF || get_priority(op) >= get_priority(next_op)) {
@@ -153,6 +194,8 @@ void print_ast(Ast *ast) {
             goto printf_op;
         case '/':
             printf("(/ ");
+        case '=':
+            printf("(=");
 		printf_op:
 			print_ast(ast->left);
 			printf(" ");
@@ -162,8 +205,8 @@ void print_ast(Ast *ast) {
 		case AST_INT:
 			printf("%d", ast->ival);
 			break;
-		case AST_STR:
-			printf("%s", ast->sval);
+		case AST_SYM:
+			printf("%s", ast->var->name);
 			break;
 		default:
 		printf("should not reach here!");

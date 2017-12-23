@@ -9,3 +9,4 @@ make -s cc
 testast '1+2-3+4'
 testast '1*2+3*4'
 testast '4/2+6/3'
+testast 'a=3'

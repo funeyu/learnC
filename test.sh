@@ -12,4 +12,4 @@ testast '4/2+6/3'
 testast 'a=3'
 testast 's(b,c,d)'
 testast 'a()'
-testast "abc"
+testast '"abc"'

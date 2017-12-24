@@ -11,26 +11,24 @@
 
 enum {
     AST_INT,
-    AST_SYM,
+    AST_VAR,
     AST_STR,
     AST_FUNCALL,
 };
-
-typedef struct Var {
-    char *name;
-    int pos;
-    struct Var *next;
-} Var;
 
 typedef struct Ast {
     char type;
     union {
         int ival;
-        Var *var;
         struct {
             char *sval;
             int sid;
             struct Ast *snext;
+        };
+        struct {
+            char *vname;
+            int vpos;
+            struct Ast *vnext;
         };
         struct {
             struct Ast *left;
@@ -44,7 +42,7 @@ typedef struct Ast {
     };
 } Ast;
 
-Var *vars = NULL;
+Ast *vars = NULL;
 Ast *strings = NULL;
 
 void emit_intexpr(Ast *ast);
@@ -69,10 +67,14 @@ Ast *make_ast_int(int val) {
     return r;
 }
 
-Ast *make_ast_sym(Var *var) {
+Ast *make_ast_var(char *vname) {
     Ast *r = malloc(sizeof(Ast));
-    r->type = AST_SYM;
-    r->var = var;
+    r->type = AST_VAR;
+    r->vname = vname;
+    r->vpos = vars ? vars->vpos + 1 : 1;
+    r->vnext = vars;
+    vars = r;
+
     return r;
 }
 
@@ -86,23 +88,14 @@ void skip_space(void) {
     }
 }
 
-Var *find_var(char *name) {
-    for(Var *v = vars; v; v = v->next) {
-        if(!strcmp(name, v->name)) {
+Ast *find_var(char *name) {
+    for(Ast *v = vars; v; v = v->vnext) {
+        if(!strcmp(name, v->vname)) {
             return v;
         }
     }
 
     return NULL;
-}
-
-Var *make_var(char *name) {
-    Var *v = malloc(sizeof(Var));
-    v->name = name;
-    v->pos = vars ? vars->pos + 1 : 1;
-    v->next = vars;
-    vars = v;
-    return v;
 }
 
 Ast *read_number(int n) {
@@ -124,7 +117,6 @@ Ast *read_prim(void) {
     if (isdigit(c)) {
         return read_number(c - '0');
     } else if(c == '"') {
-        printf("read_prim");
         return read_string();
     }
     else if (isalpha(c)) {
@@ -157,8 +149,7 @@ char *read_ident(char c) {
 
 Ast * make_arg(char c) {
     char *name = read_ident(c);
-    Var *v = make_var(name);
-    return make_ast_sym(v);
+    return make_ast_var(name);
 }
 
 Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
@@ -194,7 +185,6 @@ Ast *read_func_args(char *fname) {
         skip_space();
         char c = getc(stdin);
         if(c == ')') break;
-        ungetc(c, stdin);
         args[i] = make_arg(c);
         nargs++;
         c = getc(stdin);
@@ -215,9 +205,9 @@ Ast *read_ident_or_func(char c) {
     }
 
     ungetc(c2, stdin);
-    Var *v = find_var(name);
-    if(!v) v = make_var(name);
-    return make_ast_sym(v);
+    Ast *v = find_var(name);
+    if(!v) v = make_ast_var(name);
+    return v;
 }
 
 Ast *read_string(void) {
@@ -303,6 +293,7 @@ void print_ast(Ast *ast) {
             goto printf_op;
         case '=':
             printf("(=");
+            goto printf_op;
         case AST_FUNCALL:
             printf("%s(", ast->fname);
             for (int i = 0; ast->args[i]; i ++) {
@@ -316,6 +307,7 @@ void print_ast(Ast *ast) {
             printf("\"");
             print_quote(ast-> sval);
             printf("\"");
+            break;
 		printf_op:
 			print_ast(ast->left);
 			printf(" ");
@@ -325,8 +317,8 @@ void print_ast(Ast *ast) {
 		case AST_INT:
 			printf("%d", ast->ival);
 			break;
-		case AST_SYM:
-			printf("%s", ast->var->name);
+		case AST_VAR:
+			printf("%s", ast->vname);
 			break;
 		default:
 		  printf("should not reach here!");

@@ -7,9 +7,12 @@
 
 #define BUFLEN 256
 #define MAX_ARGS 6
+#define EXPR_LEN 100
+
 enum {
     AST_INT,
     AST_SYM,
+    AST_STR,
     AST_FUNCALL,
 };
 
@@ -25,6 +28,11 @@ typedef struct Ast {
         int ival;
         Var *var;
         struct {
+            char *sval;
+            int sid;
+            struct Ast *snext;
+        };
+        struct {
             struct Ast *left;
             struct Ast *right;
         };
@@ -37,9 +45,11 @@ typedef struct Ast {
 } Ast;
 
 Var *vars = NULL;
+Ast *strings = NULL;
 
 void emit_intexpr(Ast *ast);
 Ast *read_symbol(char c);
+Ast *read_string(void);
 Ast *read_ident_or_func(char c);
 Ast *read_expr(void);
 
@@ -109,10 +119,15 @@ Ast *read_number(int n) {
 
 
 Ast *read_prim(void) {
+
     char c = getc(stdin);
     if (isdigit(c)) {
         return read_number(c - '0');
-    } else if (isalpha(c)) {
+    } else if(c == '"') {
+        printf("read_prim");
+        return read_string();
+    }
+    else if (isalpha(c)) {
         return read_ident_or_func(c);
     } else if (c == EOF) {
         return NULL;
@@ -156,6 +171,22 @@ Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
     return r;
 }
 
+Ast *make_ast_str(char *str) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_STR;
+    r->sval = str;
+    if(strings == NULL) {
+        r->sid = 0;
+        r->snext = NULL;
+    } else {
+        r->sid = strings->sid + 1;
+        r->snext = strings;
+    }
+
+    strings = r;
+    return r;
+}
+
 Ast *read_func_args(char *fname) {
     Ast **args = malloc(sizeof(Ast*) * (MAX_ARGS + 1));
     int i = 0, nargs = 0;
@@ -187,6 +218,18 @@ Ast *read_ident_or_func(char c) {
     Var *v = find_var(name);
     if(!v) v = make_var(name);
     return make_ast_sym(v);
+}
+
+Ast *read_string(void) {
+    char *buf = malloc(BUFLEN);
+    int c = getc(stdin);
+    for(int i=0; ;i++) {
+        if(c == '"') break;
+        buf[i] = c;
+        c = getc(stdin);
+    }
+
+    return make_ast_str(buf);
 }
 
 int get_priority(char op) {
@@ -235,6 +278,15 @@ Ast *make_ast_up(Ast *ast) {
     }
 }
 
+void print_quote(char *p) {
+    while(*p) {
+        if(*p == '\"' || *p == '\\') 
+            printf("\\");
+        printf("%c", *p);
+        p++;
+    }
+}
+
 void print_ast(Ast *ast) {             
 	switch(ast->type) {
 		case '+':
@@ -258,6 +310,10 @@ void print_ast(Ast *ast) {
             }
             printf(")");
             break;
+        case AST_STR:
+            printf("\"");
+            print_quote(ast-> sval);
+            printf("\"");
 		printf_op:
 			print_ast(ast->left);
 			printf(" ");

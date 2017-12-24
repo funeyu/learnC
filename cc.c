@@ -11,6 +11,7 @@
 
 enum {
     AST_INT,
+    AST_CHAR,
     AST_VAR,
     AST_STR,
     AST_FUNCALL,
@@ -20,6 +21,7 @@ typedef struct Ast {
     char type;
     union {
         int ival;
+        char c;
         struct {
             char *sval;
             int sid;
@@ -78,6 +80,14 @@ Ast *make_ast_var(char *vname) {
     return r;
 }
 
+Ast *make_ast_char(char c) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_CHAR;
+    r->c = c;
+    return r;
+}
+
+
 void skip_space(void) {
     int c;
     while((c=getc(stdin)) != EOF) {
@@ -110,6 +120,23 @@ Ast *read_number(int n) {
     }
 }
 
+Ast *read_char(void) {
+    char c = getc(stdin);
+    if(c == EOF) goto err;
+
+    char c1 = getc(stdin);
+    if(c1 != '\'') {
+        perror("wrong char formart");
+    }
+    if(c1 == EOF) {
+        goto err;
+    }
+
+    return make_ast_char(c);
+err: 
+    perror("unterminated char");
+    return NULL;
+}
 
 Ast *read_prim(void) {
 
@@ -118,8 +145,9 @@ Ast *read_prim(void) {
         return read_number(c - '0');
     } else if(c == '"') {
         return read_string();
-    }
-    else if (isalpha(c)) {
+    } else if(c == '\'') {
+        return read_char();
+    } else if (isalpha(c)) {
         return read_ident_or_func(c);
     } else if (c == EOF) {
         return NULL;
@@ -294,6 +322,9 @@ void print_ast(Ast *ast) {
         case '=':
             printf("(=");
             goto printf_op;
+        case AST_CHAR:
+            printf("'%c'", ast->c);
+            break;
         case AST_FUNCALL:
             printf("%s(", ast->fname);
             for (int i = 0; ast->args[i]; i ++) {

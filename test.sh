@@ -13,3 +13,4 @@ testast 'a=3'
 testast 's(b,c,d)'
 testast 'a()'
 testast '"abc"'
+testast "'b'"

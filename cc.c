@@ -294,11 +294,13 @@ void print_ast(Ast *ast) {
 			goto printf_op;
 		case '-':
 			printf("(- ");
+            goto printf_op;
         case '*':
             printf("(* ");
             goto printf_op;
         case '/':
             printf("(/ ");
+            goto printf_op;
         case '=':
             printf("(=");
         case AST_FUNCALL:

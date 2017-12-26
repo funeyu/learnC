@@ -1,10 +1,11 @@
 #ifndef ECC_H
 #define ECC_H
 
-include <stdbool.h>
+#include <stdbool.h>
 
 enum {
 	TTYPE_IDENT,
+	TTYPE_INT,
 	TTYPE_PUNCT,
 	TTYPE_CHAR,
 	TTYPE_STRING,

@@ -1,11 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <string.h>
+#include "cc.h"
 
-#define BUFLEN 256
 #define MAX_ARGS 6
 #define EXPR_LEN 100
 
@@ -50,6 +49,7 @@ Ast *strings = NULL;
 void emit_intexpr(Ast *ast);
 Ast *read_symbol(char c);
 Ast *read_string(void);
+Ast *read_prim(void);
 Ast *read_ident_or_func(char c);
 Ast *read_expr(void);
 
@@ -87,17 +87,6 @@ Ast *make_ast_char(char c) {
     return r;
 }
 
-
-void skip_space(void) {
-    int c;
-    while((c=getc(stdin)) != EOF) {
-    	if(isspace(c))
-    		continue;
-    	ungetc(c, stdin);
-    	return;
-    }
-}
-
 Ast *find_var(char *name) {
     for(Ast *v = vars; v; v = v->vnext) {
         if(!strcmp(name, v->vname)) {
@@ -106,73 +95,6 @@ Ast *find_var(char *name) {
     }
 
     return NULL;
-}
-
-Ast *read_number(int n) {
-    for(;;) {
-        int c = getc(stdin);
-        if(!isdigit(c)) {
-            ungetc(c, stdin);
-            return make_ast_int(n);
-        }
-
-        n = n * 10 + (c - '0');
-    }
-}
-
-Ast *read_char(void) {
-    char c = getc(stdin);
-    if(c == EOF) goto err;
-
-    char c1 = getc(stdin);
-    if(c1 != '\'') {
-        perror("wrong char formart");
-    }
-    if(c1 == EOF) {
-        goto err;
-    }
-
-    return make_ast_char(c);
-err: 
-    perror("unterminated char");
-    return NULL;
-}
-
-Ast *read_prim(void) {
-
-    char c = getc(stdin);
-    if (isdigit(c)) {
-        return read_number(c - '0');
-    } else if(c == '"') {
-        return read_string();
-    } else if(c == '\'') {
-        return read_char();
-    } else if (isalpha(c)) {
-        return read_ident_or_func(c);
-    } else if (c == EOF) {
-        return NULL;
-    }
-
-    printf("exit(1);");
-    exit(1);
-}
-
-char *read_ident(char c) {
-    char *buf = malloc(BUFLEN);
-    buf[0] = c;
-    int i = 1;
-    for(;;) {
-        int c = getc(stdin);
-        if(!isalnum(c)) {
-            ungetc(c, stdin);
-            break;
-        }
-        buf[i++] = c;
-        if(i == BUFLEN -1)
-            perror("Identifier too long");
-    }
-    buf[i] = '\0';
-    return buf;
 }
 
 Ast * make_arg(char c) {
@@ -190,7 +112,7 @@ Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
     return r;
 }
 
-Ast *make_ast_str(char *str) {
+Ast *make_ast_string(char *str) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_STR;
     r->sval = str;
@@ -225,29 +147,31 @@ Ast *read_func_args(char *fname) {
 }
 
 Ast *read_ident_or_func(char c) {
-    char *name = read_ident(c);
-    skip_space();
-    char c2 = getc(stdin);
-    if(c2 == '(') { // 这里形如：'(a,b,c,d)', 说明是function
-        return read_func_args(name);
+    Token *token = read_token();
+    if(is_punct(token, '(')) { // 这里形如：'(a,b,c,d)', 说明是function
+        return read_func_args(c);
     }
-
-    ungetc(c2, stdin);
-    Ast *v = find_var(name);
-    if(!v) v = make_ast_var(name);
+    
+    Ast *v = find_var(c);
+    if(!v) v = make_ast_var(c);
     return v;
 }
 
-Ast *read_string(void) {
-    char *buf = malloc(BUFLEN);
-    int c = getc(stdin);
-    for(int i=0; ;i++) {
-        if(c == '"') break;
-        buf[i] = c;
-        c = getc(stdin);
+Ast *read_prim(void) {
+    Token *token = read_token();
+    switch(token->type) {
+        case TTYPE_IDENT:
+            return read_ident_or_func(token->sval);
+        case TTYPE_INT:
+            return make_ast_int(token->ival);
+        case TTYPE_CHAR:
+            return make_ast_char(token->c);
+        case TTYPE_STRING:
+            return make_ast_string(token->sval);
+        default:
+            printf("internal error token");
+            return NULL;
     }
-
-    return make_ast_str(buf);
 }
 
 int get_priority(char op) {

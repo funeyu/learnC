@@ -42,6 +42,16 @@ static Token *make_char(char c) {
 	return r;
 }
 
+static void skip_space(void) {
+	int c;
+	while((c = getc(stdin)) != EOF) {
+		if(isspace(c))
+			continue;
+		ungetc(c, stdin);
+		return;
+	}
+}
+
 static Token *read_number(char c) {
 	int n = c - '0';
 	for(;;) {

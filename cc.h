@@ -32,10 +32,10 @@ extern char *get_cstring(String *s);
 extern void string_append(String *s, char c);
 extern void string_appendf(String *s, char *fmt, ...);
 
-extern char *token_to_string(void);
+extern char *token_to_string(Token *token);
 extern bool is_punct(Token *tok, char c);
 extern void unget_token(Token *tok);
 extern Token *peek_token(void);
 extern Token *read_token(void);
 
-#endif
+#endif /* ECC_H */

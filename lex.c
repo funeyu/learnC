@@ -1,6 +1,7 @@
-#include <stdion.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+
 #include "cc.h"
 
 #define BUFLEN 256
@@ -87,8 +88,9 @@ static Token *read_string(void) {
 		int c = getc(stdin);
 		if(c == EOF) 
 			perror("unterminated string");
-		if(c == '"')
+		if(c == '"') {
 			break;
+		}
 		if(c == '\\') {
 			c = getc(stdin);
 			if (c == EOF)
@@ -101,7 +103,7 @@ static Token *read_string(void) {
 }
 
 static Token *read_ident(char c) {
-	String *c = make_string();
+	String *s = make_string();
 	string_append(s, c);
 	for(;;) {
 		int c2 = getc(stdin);
@@ -141,6 +143,7 @@ static Token *read_token_int(void) {
 			return NULL;
 		default:
 			perror("unexpected character");
+			return NULL;
 	}
 }
 
@@ -156,20 +159,21 @@ char *token_to_string(Token *tok) {
 		}
 		case TTYPE_INT: {
 			String *s = make_string();
-			string_append(s, "%d", tok->ival);
+			string_appendf(s, "%d", tok->ival);
 			return get_cstring(s);
 		}
 		case TTYPE_STRING : {
 			String *s = make_string();
-			string_append(s, "\"%s\"", tok->sval);
+			string_appendf(s, "\"%s\"", tok->sval);
 			return get_cstring(s);
 		}
 		default:
 			perror("internal error");
+			return NULL;
 	}
 }
 
-int is_punct(Token *tok, char c) {
+bool is_punct(Token *tok, char c) {
 	if(!tok) 
 		perror("token is null");
 	return tok->type == TTYPE_PUNCT && tok->punct == c;
@@ -182,6 +186,7 @@ void unget_token(Token *tok) {
 }
 
 Token *read_token(void) {
+
 	if(ungotten) {
 		Token *tok = ungotten;
 		ungotten = NULL;

@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <stdarg.h>
 #include <string.h>
 #include "cc.h"
@@ -50,7 +49,7 @@ void emit_intexpr(Ast *ast);
 Ast *read_symbol(char c);
 Ast *read_string(void);
 Ast *read_prim(void);
-Ast *read_ident_or_func(char c);
+Ast *read_ident_or_func(char *c);
 Ast *read_expr(void);
 
 Ast *make_ast_op(char type, Ast *left, Ast *right) {
@@ -98,8 +97,8 @@ Ast *find_var(char *name) {
 }
 
 Ast * make_arg(char c) {
-    char *name = read_ident(c);
-    return make_ast_var(name);
+    Token *name = read_token();
+    return make_ast_var(name->sval);
 }
 
 Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
@@ -132,26 +131,25 @@ Ast *read_func_args(char *fname) {
     Ast **args = malloc(sizeof(Ast*) * (MAX_ARGS + 1));
     int i = 0, nargs = 0;
     for (; i < MAX_ARGS; i ++) {
-        skip_space();
         char c = getc(stdin);
         if(c == ')') break;
         args[i] = make_arg(c);
         nargs++;
         c = getc(stdin);
-        if(c == ',') skip_space();
+        if(c == ',') ;
         else if(c == ')') break;
-        else perror("unexcepted character");
+        else perror("unexcepted characterhhhh");
     }
 
     return make_ast_funcall(fname, nargs, args);
 }
 
-Ast *read_ident_or_func(char c) {
+Ast *read_ident_or_func(char* c) {
     Token *token = read_token();
     if(is_punct(token, '(')) { // 这里形如：'(a,b,c,d)', 说明是function
         return read_func_args(c);
     }
-    
+
     Ast *v = find_var(c);
     if(!v) v = make_ast_var(c);
     return v;
@@ -188,10 +186,10 @@ int get_priority(char op) {
 }
 
 Ast *make_ast_up(Ast *ast) {
-    skip_space();
     int c = getc(stdin);
-    if (c == EOF)
-      return ast;
+    if (c == EOF || c == 10) {
+        return ast;
+    }
     int op;
     if (c == '+') {
         op = '+';
@@ -229,7 +227,7 @@ void print_quote(char *p) {
     }
 }
 
-void print_ast(Ast *ast) {             
+void print_ast(Ast *ast) {          
 	switch(ast->type) {
 		case '+':
 			printf("(+ ");
@@ -286,7 +284,7 @@ int main(int argc, char **arg) {
     Ast *left = read_prim();
     Ast *r = make_ast_up(left);
 
-    print_ast(r);
+    print_ast(left);
 
     return 0;
 }

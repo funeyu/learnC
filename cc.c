@@ -98,6 +98,7 @@ Ast *find_var(char *name) {
 
 Ast * make_arg(char c) {
     Token *name = read_token();
+    printf("make_arg: %s\n", name->sval);
     return make_ast_var(name->sval);
 }
 
@@ -138,7 +139,7 @@ Ast *read_func_args(char *fname) {
         c = getc(stdin);
         if(c == ',') ;
         else if(c == ')') break;
-        else perror("unexcepted characterhhhh");
+        else perror("unexcepted character");
     }
 
     return make_ast_funcall(fname, nargs, args);
@@ -186,6 +187,7 @@ int get_priority(char op) {
 }
 
 Ast *make_ast_up(Ast *ast) {
+
     int c = getc(stdin);
     if (c == EOF || c == 10) {
         return ast;
@@ -227,7 +229,8 @@ void print_quote(char *p) {
     }
 }
 
-void print_ast(Ast *ast) {          
+void print_ast(Ast *ast) {
+    
 	switch(ast->type) {
 		case '+':
 			printf("(+ ");
@@ -284,7 +287,7 @@ int main(int argc, char **arg) {
     Ast *left = read_prim();
     Ast *r = make_ast_up(left);
 
-    print_ast(left);
+    print_ast(r);
 
     return 0;
 }

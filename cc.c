@@ -96,7 +96,7 @@ Ast *find_var(char *name) {
     return NULL;
 }
 
-Ast * make_arg(char c) {
+Ast * make_arg() {
     Token *name = read_token();
     printf("make_arg: %s\n", name->sval);
     return make_ast_var(name->sval);
@@ -132,14 +132,15 @@ Ast *read_func_args(char *fname) {
     Ast **args = malloc(sizeof(Ast*) * (MAX_ARGS + 1));
     int i = 0, nargs = 0;
     for (; i < MAX_ARGS; i ++) {
-        char c = getc(stdin);
-        if(c == ')') break;
-        args[i] = make_arg(c);
+        Token *tok = read_token();
+        if(is_punct(tok, ')')) break;
+        unget_token(tok);
+        args[i] = make_arg();
         nargs++;
-        c = getc(stdin);
-        if(c == ',') ;
-        else if(c == ')') break;
-        else perror("unexcepted character");
+        tok = read_token();
+        if(is_punct(tok, ')')) break;
+        if(!is_punct(tok, ','))
+            perror("unexcepted character");
     }
 
     return make_ast_funcall(fname, nargs, args);

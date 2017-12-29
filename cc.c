@@ -58,6 +58,7 @@ Ast *make_ast_op(char type, Ast *left, Ast *right) {
     r->left = left;
     r->right = right;
 
+    printf("make_ast_op: %d\n", type);
     return r;
 }
 
@@ -152,6 +153,7 @@ Ast *read_ident_or_func(char* c) {
         return read_func_args(c);
     }
 
+    unget_token(token);
     Ast *v = find_var(c);
     if(!v) v = make_ast_var(c);
     return v;
@@ -168,8 +170,12 @@ Ast *read_prim(void) {
             return make_ast_char(token->c);
         case TTYPE_STRING:
             return make_ast_string(token->sval);
+        case TTYPE_PUNCT:
+            printf("unexpected character:%c\n", token->punct);
+            unget_token(token);
+            return NULL;
         default:
-            printf("internal error token");
+            printf("internal error token\n");
             return NULL;
     }
 }
@@ -189,35 +195,23 @@ int get_priority(char op) {
 
 Ast *make_ast_up(Ast *ast) {
 
-    int c = getc(stdin);
-    if (c == EOF || c == 10) {
+    Token *type = read_token();
+    if (type == NULL) {
         return ast;
     }
-    int op;
-    if (c == '+') {
-        op = '+';
-    }
-    else if (c == '-') {
-        op = '-';
-    }
-    else if (c == '*') {
-        op = '*';
-    }
-    else if (c == '/') {
-        op = '/';
-    }
-    else if(c == '=') {
-        op = '=';
-    }
+    int c = type->punct;
 
     Ast *right = read_prim();
-    int next_op = getc(stdin);
-    if (next_op == EOF || get_priority(op) >= get_priority(next_op)) {
-        ungetc(next_op, stdin);
-        return make_ast_up(make_ast_op(op, ast, right));
+    Token *next_op = read_token();
+    printf("type is:%d\n", c);
+
+    if (next_op == NULL || get_priority(c) >= get_priority(next_op->punct)) {
+        if(!next_op)
+            unget_token(next_op);
+        return make_ast_up(make_ast_op(c, ast, right));
     } else {
-        ungetc(next_op, stdin);
-        return make_ast_up(make_ast_op(op, ast, make_ast_up(right)));
+        unget_token(next_op);
+        return make_ast_up(make_ast_op(c, ast, make_ast_up(right)));
     }
 }
 

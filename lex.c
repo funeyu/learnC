@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
-
 #include "cc.h"
 
 #define BUFLEN 256

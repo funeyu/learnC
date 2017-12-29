@@ -58,7 +58,6 @@ Ast *make_ast_op(char type, Ast *left, Ast *right) {
     r->left = left;
     r->right = right;
 
-    printf("make_ast_op: %d\n", type);
     return r;
 }
 
@@ -99,7 +98,6 @@ Ast *find_var(char *name) {
 
 Ast * make_arg() {
     Token *name = read_token();
-    printf("make_arg: %s\n", name->sval);
     return make_ast_var(name->sval);
 }
 
@@ -172,7 +170,6 @@ Ast *read_prim(void) {
             return make_ast_string(token->sval);
         case TTYPE_PUNCT:
             printf("unexpected character:%c\n", token->punct);
-            unget_token(token);
             return NULL;
         default:
             printf("internal error token\n");
@@ -203,11 +200,9 @@ Ast *make_ast_up(Ast *ast) {
 
     Ast *right = read_prim();
     Token *next_op = read_token();
-    printf("type is:%d\n", c);
 
     if (next_op == NULL || get_priority(c) >= get_priority(next_op->punct)) {
-        if(!next_op)
-            unget_token(next_op);
+        unget_token(next_op);    
         return make_ast_up(make_ast_op(c, ast, right));
     } else {
         unget_token(next_op);

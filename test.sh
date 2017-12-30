@@ -17,4 +17,5 @@ testast 'a()'
 testast '"abc"'
 testast "'b'"
 testast 'int a=3'
+testast 'int a=4+8'
 testast "char c='a'"

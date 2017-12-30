@@ -347,7 +347,7 @@ static void print_ast(Ast *ast) {
 			printf("%s", ast->vname);
 			break;
         case AST_DECL:
-            printf("(decl %s %s",
+            printf("(decl %s %s ",
                 ctype_to_string(ast->decl_var->ctype),
                 ast->decl_var->vname);
             print_ast(ast->decl_init);

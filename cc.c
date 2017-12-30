@@ -64,6 +64,7 @@ static Ast *read_string(void);
 static Ast *read_prim(void);
 static Ast *read_ident_or_func(char *c);
 static Ast *read_expr(void);
+static Ast *make_ast_up(Ast *init);
 
 static Ast *make_ast_op(char type, Ast *left, Ast *right) {
     Ast *r = malloc(sizeof(Ast));
@@ -81,10 +82,11 @@ static Ast *make_ast_int(int val) {
     return r;
 }
 
-static Ast *make_ast_var(char *vname) {
+static Ast *make_ast_var(int ctype, char *vname) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_VAR;
     r->vname = vname;
+    r->ctype = ctype;
     r->vpos = vars ? vars->vpos + 1 : 1;
     r->vnext = vars;
     vars = r;
@@ -111,7 +113,7 @@ static Ast *find_var(char *name) {
 
 static Ast * make_arg() {
     Token *name = read_token();
-    return make_ast_var(name->sval);
+    return make_ast_var(CTYPE_VOID, name->sval);
 }
 
 static Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
@@ -174,7 +176,7 @@ static Ast *read_ident_or_func(char* c) {
 
     unget_token(token);
     Ast *v = find_var(c);
-    if(!v) v = make_ast_var(c);
+    if(!v) v = make_ast_var(CTYPE_VOID, c);
     return v;
 }
 
@@ -211,6 +213,45 @@ static int get_priority(char op) {
     } 
 }
 
+static int get_ctype(Token *token) {
+    if(token->type != TTYPE_IDENT) 
+        return -1;
+    if(!strcmp(token->sval, "int")) 
+        return CTYPE_INT;
+    if(!strcmp(token->sval, "char"))
+        return CTYPE_CHAR;
+    if(!strcmp(token->sval, "string"))
+        return CTYPE_STR;
+
+    return -1;
+}
+
+static bool is_type_keyword(Token *token) {
+    return get_ctype(token) != -1;
+}
+
+
+static void expect(char punct) {
+    Token *token = read_token();
+    if(!is_punct(token, punct)) 
+        printf("'%c' expected", punct);
+}
+
+static Ast *read_decl(void) {
+    int ctype = get_ctype(read_token());
+    Token *name = read_token();
+    if(name->type != TTYPE_IDENT) 
+        printf("Identifier expected");
+    Ast *var = make_ast_var(ctype, name->sval);
+
+    expect('=');
+
+    Ast *left = read_prim();
+    Ast *init = make_ast_up(left);
+
+    return make_ast_decl(var, init);
+}
+
 static Ast *make_ast_up(Ast *ast) {
 
     Token *type = read_token();
@@ -231,6 +272,21 @@ static Ast *make_ast_up(Ast *ast) {
     }
 }
 
+static char *ctype_to_string(int ctype) {
+    switch(ctype) {
+        case CTYPE_VOID: 
+            return "void";
+        case CTYPE_INT:
+            return "int";
+        case CTYPE_CHAR:
+            return "char";
+        case CTYPE_STR:
+            return "string";
+        default:
+            printf("Unknown ctype: %d", ctype);
+            return NULL;
+    }
+}
 static void print_quote(char *p) {
     while(*p) {
         if(*p == '\"' || *p == '\\') 
@@ -290,6 +346,13 @@ static void print_ast(Ast *ast) {
 		case AST_VAR:
 			printf("%s", ast->vname);
 			break;
+        case AST_DECL:
+            printf("(decl %s %s",
+                ctype_to_string(ast->decl_var->ctype),
+                ast->decl_var->vname);
+            print_ast(ast->decl_init);
+            printf(")");
+            break;
 		default:
 		  printf("should not reach here!");
 
@@ -298,10 +361,19 @@ static void print_ast(Ast *ast) {
 
 int main(int argc, char **arg) {
 
-    Ast *left = read_prim();
-    Ast *r = make_ast_up(left);
+    Token *begin = read_token();
+    if(!begin)
+        return 0;
+    unget_token(begin);
+
+    Ast * r ;
+    if(is_type_keyword(begin)) {
+        r = read_decl();
+    } else {
+        Ast *left = read_prim();
+        r = make_ast_up(left);
+    }
 
     print_ast(r);
-
     return 0;
 }

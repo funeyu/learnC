@@ -16,3 +16,5 @@ testast 's(b,c,d)'
 testast 'a()'
 testast '"abc"'
 testast "'b'"
+testast 'int a=3'
+testast "char c='a'"

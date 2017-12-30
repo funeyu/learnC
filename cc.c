@@ -242,8 +242,11 @@ void print_ast(Ast *ast) {
             break;
         case AST_FUNCALL:
             printf("%s(", ast->fname);
-            for (int i = 0; ast->args[i]; i ++) {
-                print_ast(ast->args[i]);
+            for (int i = 0; i < ast->nargs; i ++) {
+                if(ast->args[i]) {
+                    print_ast(ast->args[i]);
+                }
+                
                 if(ast->args[i + 1])
                     printf(",");
             }

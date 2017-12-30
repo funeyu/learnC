@@ -13,10 +13,19 @@ enum {
     AST_VAR,
     AST_STR,
     AST_FUNCALL,
+    AST_DECL,
+};
+
+enum {
+    CTYPE_VOID,
+    CTYPE_INT,
+    CTYPE_CHAR,
+    CTYPE_STR,
 };
 
 typedef struct Ast {
     char type;
+    char ctype;
     union {
         int ival;
         char c;
@@ -39,20 +48,24 @@ typedef struct Ast {
             int nargs;
             struct Ast **args;
         };
+        struct {
+            struct Ast *decl_var;
+            struct Ast *decl_init;
+        };
     };
 } Ast;
 
-Ast *vars = NULL;
-Ast *strings = NULL;
+static Ast *vars = NULL;
+static Ast *strings = NULL;
 
 void emit_intexpr(Ast *ast);
-Ast *read_symbol(char c);
-Ast *read_string(void);
-Ast *read_prim(void);
-Ast *read_ident_or_func(char *c);
-Ast *read_expr(void);
+static Ast *read_symbol(char c);
+static Ast *read_string(void);
+static Ast *read_prim(void);
+static Ast *read_ident_or_func(char *c);
+static Ast *read_expr(void);
 
-Ast *make_ast_op(char type, Ast *left, Ast *right) {
+static Ast *make_ast_op(char type, Ast *left, Ast *right) {
     Ast *r = malloc(sizeof(Ast));
     r->type = type;
     r->left = left;
@@ -61,14 +74,14 @@ Ast *make_ast_op(char type, Ast *left, Ast *right) {
     return r;
 }
 
-Ast *make_ast_int(int val) {
+static Ast *make_ast_int(int val) {
     Ast *r = malloc(sizeof(Ast));
     r-> type = AST_INT;
     r->ival = val;
     return r;
 }
 
-Ast *make_ast_var(char *vname) {
+static Ast *make_ast_var(char *vname) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_VAR;
     r->vname = vname;
@@ -79,14 +92,14 @@ Ast *make_ast_var(char *vname) {
     return r;
 }
 
-Ast *make_ast_char(char c) {
+static Ast *make_ast_char(char c) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_CHAR;
     r->c = c;
     return r;
 }
 
-Ast *find_var(char *name) {
+static Ast *find_var(char *name) {
     for(Ast *v = vars; v; v = v->vnext) {
         if(!strcmp(name, v->vname)) {
             return v;
@@ -96,12 +109,12 @@ Ast *find_var(char *name) {
     return NULL;
 }
 
-Ast * make_arg() {
+static Ast * make_arg() {
     Token *name = read_token();
     return make_ast_var(name->sval);
 }
 
-Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
+static Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_FUNCALL;
     r->fname = fname;
@@ -111,7 +124,7 @@ Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
     return r;
 }
 
-Ast *make_ast_string(char *str) {
+static Ast *make_ast_string(char *str) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_STR;
     r->sval = str;
@@ -127,7 +140,15 @@ Ast *make_ast_string(char *str) {
     return r;
 }
 
-Ast *read_func_args(char *fname) {
+static Ast *make_ast_decl(Ast *var, Ast *init) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_DECL;
+    r->decl_var = var;
+    r->decl_init = init;
+    return r;
+}
+
+static Ast *read_func_args(char *fname) {
     Ast **args = malloc(sizeof(Ast*) * (MAX_ARGS + 1));
     int i = 0, nargs = 0;
     for (; i < MAX_ARGS; i ++) {
@@ -145,7 +166,7 @@ Ast *read_func_args(char *fname) {
     return make_ast_funcall(fname, nargs, args);
 }
 
-Ast *read_ident_or_func(char* c) {
+static Ast *read_ident_or_func(char* c) {
     Token *token = read_token();
     if(is_punct(token, '(')) { // 这里形如：'(a,b,c,d)', 说明是function
         return read_func_args(c);
@@ -157,7 +178,7 @@ Ast *read_ident_or_func(char* c) {
     return v;
 }
 
-Ast *read_prim(void) {
+static Ast *read_prim(void) {
     Token *token = read_token();
     switch(token->type) {
         case TTYPE_IDENT:
@@ -177,7 +198,7 @@ Ast *read_prim(void) {
     }
 }
 
-int get_priority(char op) {
+static int get_priority(char op) {
     switch(op) {
         case '=':
             return 1;
@@ -190,7 +211,7 @@ int get_priority(char op) {
     } 
 }
 
-Ast *make_ast_up(Ast *ast) {
+static Ast *make_ast_up(Ast *ast) {
 
     Token *type = read_token();
     if (type == NULL) {
@@ -210,7 +231,7 @@ Ast *make_ast_up(Ast *ast) {
     }
 }
 
-void print_quote(char *p) {
+static void print_quote(char *p) {
     while(*p) {
         if(*p == '\"' || *p == '\\') 
             printf("\\");
@@ -219,7 +240,7 @@ void print_quote(char *p) {
     }
 }
 
-void print_ast(Ast *ast) {
+static void print_ast(Ast *ast) {
     
 	switch(ast->type) {
 		case '+':

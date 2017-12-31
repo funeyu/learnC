@@ -273,7 +273,6 @@ static Ast *read_decl(void) {
 
             return make_ast_decl(var, init);
         } else if(next_p == ';') {// 没有初始值的申明
-            printf("%s\n", "empty decl");
             return make_ast_decl(var, init);
         }
         return NULL;
@@ -439,6 +438,8 @@ int main(int argc, char **arg) {
 
     Ast *f;
     Ast *r;
+    Ast *expressions[EXPR_LEN];
+    int nexpr = 0;
     for(;;) {
         Token *begin = read_token();
         if(!begin)
@@ -446,32 +447,31 @@ int main(int argc, char **arg) {
         unget_token(begin);
 
         if(is_type_keyword(begin)) {
-            printf("%s\n", "is_type_keyword");
             r = read_decl();
         } else {
             Ast *left = read_prim();
             r = make_ast_up(left);
         }
-        if(!f) {
-            f = r;
-            printf("%s\n", "!f");
-        } else {
-            printf("%s\n", "else !f");
-            f->next = r;
-        }
+        
+        expressions[nexpr++] = r;
     }
 
-    print_ast(f);
-    if(f->next == NULL) {
-        printf("\n%s\n", "next");
-    } else {
-        printf("\n%s\n", "else");
+    for(int v = 0; v < nexpr; v ++) {
+        print_ast(expressions[v]);
     }
-    while(f) {
-        // print_ast(f);
-        printf("%s\n", "fff");
-        f = f->next ? f->next : NULL;
-    }
+
+    // 下面是链表的写法
+    // print_ast(f);
+    // if(f->next == NULL) {
+    //     printf("\n%s\n", "next");
+    // } else {
+    //     printf("\n%s\n", "else");
+    // }
+    // while(f) {
+    //     // print_ast(f);
+    //     printf("%s\n", "fff");
+    //     f = f->next ? f->next : NULL;
+    // }
 
     return 0;
 }

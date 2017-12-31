@@ -23,11 +23,11 @@ enum {
     CTYPE_STR,
 };
 
-typedef struct Ast {
+typedef struct Ast Ast;
+struct Ast {
     char type;
     char ctype;
-    struct Ast *next;
-    struct Ast *pre;
+    Ast *next;
     union {
         int ival;
         char c;
@@ -55,7 +55,7 @@ typedef struct Ast {
             struct Ast *decl_init;
         };
     };
-} Ast;
+};
 
 static Ast *vars = NULL;
 static Ast *strings = NULL;
@@ -155,7 +155,7 @@ static Ast *make_ast_decl(Ast *var, Ast *init) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_DECL;
     r->decl_var = var;
-    r->decl_init = init;
+    r->decl_init = init ? init : NULL;
     return r;
 }
 
@@ -246,22 +246,48 @@ static void expect(char punct) {
         printf("'%c' expected", punct);
 }
 
+static char next_punct() {
+    Token *token = read_token();
+    if(token->type == TTYPE_PUNCT)
+        return token->punct;
+    else {
+        unget_token(token);
+        return (char)0;
+    }
+}
+
 static Ast *read_decl(void) {
+    Ast *init;
+
     int ctype = get_ctype(read_token());
     Token *name = read_token();
     if(name->type != TTYPE_IDENT) 
         printf("Identifier expected");
     Ast *var = make_ast_var(ctype, name->sval);
 
-    expect('=');
+    char next_p = next_punct();
+    if(next_p) {
+        if(next_p == '=') {
+            Ast *left = read_prim();
+            init = make_ast_up(left);
 
-    Ast *left = read_prim();
-    Ast *init = make_ast_up(left);
+            return make_ast_decl(var, init);
+        } else if(next_p == ';') {// 没有初始值的申明
+            printf("%s\n", "empty decl");
+            return make_ast_decl(var, init);
+        }
+        return NULL;
+    } else {
+        perror("expected punct!!!!!");
+        return NULL;
+    }
 
-    return make_ast_decl(var, init);
+    
 }
 
 static char result_type(char op, Ast *left, Ast *right) {
+    Ast *var_str;
+
     switch(left->ctype) {
         case CTYPE_VOID:
             goto err;
@@ -273,6 +299,7 @@ static char result_type(char op, Ast *left, Ast *right) {
                 case CTYPE_STR:
                     goto err;
             }
+            break;
         case CTYPE_CHAR:
             switch(right->ctype) {
                 case CTYPE_CHAR:
@@ -281,8 +308,14 @@ static char result_type(char op, Ast *left, Ast *right) {
                 case CTYPE_INT:
                     goto err;
             }
+            break;
         case CTYPE_STR:
-            goto err;
+            var_str = find_var(left->sval);
+            if(var_str) {
+                printf("sssssss");
+            }
+            return CTYPE_INT;
+            // goto err;
         default:
             perror("internal error!");
 
@@ -290,6 +323,7 @@ static char result_type(char op, Ast *left, Ast *right) {
 
     err:
         perror("incompatible operands");
+        return (char)0;
 }
 
 static Ast *make_ast_up(Ast *ast) {
@@ -391,7 +425,8 @@ static void print_ast(Ast *ast) {
             printf("(decl %s %s ",
                 ctype_to_string(ast->decl_var->ctype),
                 ast->decl_var->vname);
-            print_ast(ast->decl_init);
+            if(ast->decl_init)
+                print_ast(ast->decl_init);
             printf(")");
             break;
 		default:
@@ -403,29 +438,40 @@ static void print_ast(Ast *ast) {
 int main(int argc, char **arg) {
 
     Ast *f;
+    Ast *r;
     for(;;) {
         Token *begin = read_token();
         if(!begin)
             break;
         unget_token(begin);
 
-        Ast * r ;
-
         if(is_type_keyword(begin)) {
+            printf("%s\n", "is_type_keyword");
             r = read_decl();
         } else {
             Ast *left = read_prim();
             r = make_ast_up(left);
         }
-        if(!f) 
+        if(!f) {
             f = r;
-        else 
+            printf("%s\n", "!f");
+        } else {
+            printf("%s\n", "else !f");
             f->next = r;
+        }
     }
 
-    while(f) {
-        print_ast(f);
-        f = f->next;
+    print_ast(f);
+    if(f->next == NULL) {
+        printf("\n%s\n", "next");
+    } else {
+        printf("\n%s\n", "else");
     }
+    while(f) {
+        // print_ast(f);
+        printf("%s\n", "fff");
+        f = f->next ? f->next : NULL;
+    }
+
     return 0;
 }

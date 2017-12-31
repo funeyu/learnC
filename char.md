@@ -5,3 +5,49 @@ goto err: 里没有返回值；
 
 ## 标点符号：
 `！ " # $ % & ' () * + , - . / : ; < = > ? @ [ \ ] ^ _ { | } ~ ` 
+## 指针作为函数参数：
+如果要修改参数，就要传递参数的指针；
+如：
+``` c
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct Node Node;
+
+struct Node {
+    int data;
+    Node *next;
+};
+
+void init_list(Node *head, int data) {
+    head = (Node*)malloc(sizeof(Node));
+    if(head == NULL) {
+        perror("memory allocation error!");
+        return ;
+    }
+
+    head->data = data;
+    head->next = NULL;
+}
+
+int main() {
+    Node *head = NULL;
+    int N;
+    printf("N:");
+    scanf("%d", &N);
+    init_list(head, N);
+    printf("%d\n", head->data);
+
+    return 0;
+}
+```
+`init_list`这函数没能改变head值，由于参数传递的是head的副本；
+要穿参数的指针；
+``` c
+void init_list(Node **head, int data) {
+    *head = malloc(sizeof(Node));
+    (*head)->data = data;
+    (*head)->next = NULL;
+}
+init_list(&head, N);
+```

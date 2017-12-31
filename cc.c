@@ -26,6 +26,8 @@ enum {
 typedef struct Ast {
     char type;
     char ctype;
+    struct Ast *next;
+    struct Ast *pre;
     union {
         int ival;
         char c;
@@ -65,10 +67,12 @@ static Ast *read_prim(void);
 static Ast *read_ident_or_func(char *c);
 static Ast *read_expr(void);
 static Ast *make_ast_up(Ast *init);
+static char result_type(char op, Ast *left, Ast *right);
 
 static Ast *make_ast_op(char type, Ast *left, Ast *right) {
     Ast *r = malloc(sizeof(Ast));
     r->type = type;
+    r->ctype = result_type(type, left, right);
     r->left = left;
     r->right = right;
 
@@ -78,6 +82,7 @@ static Ast *make_ast_op(char type, Ast *left, Ast *right) {
 static Ast *make_ast_int(int val) {
     Ast *r = malloc(sizeof(Ast));
     r-> type = AST_INT;
+    r-> ctype = CTYPE_INT;
     r->ival = val;
     return r;
 }
@@ -97,6 +102,7 @@ static Ast *make_ast_var(int ctype, char *vname) {
 static Ast *make_ast_char(char c) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_CHAR;
+    r->ctype = CTYPE_CHAR;
     r->c = c;
     return r;
 }
@@ -113,12 +119,14 @@ static Ast *find_var(char *name) {
 
 static Ast * make_arg() {
     Token *name = read_token();
+    // todo: 函数参数得需要有类型的
     return make_ast_var(CTYPE_VOID, name->sval);
 }
 
 static Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_FUNCALL;
+    r->ctype = CTYPE_INT;
     r->fname = fname;
     r->nargs = nargs;
     r->args = args;
@@ -129,6 +137,7 @@ static Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
 static Ast *make_ast_string(char *str) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_STR;
+    r->ctype = CTYPE_STR;
     r->sval = str;
     if(strings == NULL) {
         r->sid = 0;
@@ -252,10 +261,41 @@ static Ast *read_decl(void) {
     return make_ast_decl(var, init);
 }
 
+static char result_type(char op, Ast *left, Ast *right) {
+    switch(left->ctype) {
+        case CTYPE_VOID:
+            goto err;
+        case CTYPE_INT:
+            switch(right->ctype) {
+                case CTYPE_INT:
+                case CTYPE_CHAR:
+                    return CTYPE_INT;
+                case CTYPE_STR:
+                    goto err;
+            }
+        case CTYPE_CHAR:
+            switch(right->ctype) {
+                case CTYPE_CHAR:
+                    return CTYPE_CHAR;
+                case CTYPE_STR:
+                case CTYPE_INT:
+                    goto err;
+            }
+        case CTYPE_STR:
+            goto err;
+        default:
+            perror("internal error!");
+
+    }
+
+    err:
+        perror("incompatible operands");
+}
+
 static Ast *make_ast_up(Ast *ast) {
 
     Token *type = read_token();
-    if (type == NULL) {
+    if (type == NULL || is_punct(type, ';')) {
         return ast;
     }
     int c = type->punct;
@@ -264,7 +304,8 @@ static Ast *make_ast_up(Ast *ast) {
     Token *next_op = read_token();
 
     if (next_op == NULL || get_priority(c) >= get_priority(next_op->punct)) {
-        unget_token(next_op);    
+        if(next_op)
+            unget_token(next_op);    
         return make_ast_up(make_ast_op(c, ast, right));
     } else {
         unget_token(next_op);
@@ -361,19 +402,30 @@ static void print_ast(Ast *ast) {
 
 int main(int argc, char **arg) {
 
-    Token *begin = read_token();
-    if(!begin)
-        return 0;
-    unget_token(begin);
+    Ast *f;
+    for(;;) {
+        Token *begin = read_token();
+        if(!begin)
+            break;
+        unget_token(begin);
 
-    Ast * r ;
-    if(is_type_keyword(begin)) {
-        r = read_decl();
-    } else {
-        Ast *left = read_prim();
-        r = make_ast_up(left);
+        Ast * r ;
+
+        if(is_type_keyword(begin)) {
+            r = read_decl();
+        } else {
+            Ast *left = read_prim();
+            r = make_ast_up(left);
+        }
+        if(!f) 
+            f = r;
+        else 
+            f->next = r;
     }
 
-    print_ast(r);
+    while(f) {
+        print_ast(f);
+        f = f->next;
+    }
     return 0;
 }

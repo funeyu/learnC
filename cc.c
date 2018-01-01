@@ -14,6 +14,8 @@ enum {
     AST_STR,
     AST_FUNCALL,
     AST_DECL,
+    AST_ADDR,
+    AST_DEREF,
 };
 
 enum {
@@ -21,7 +23,13 @@ enum {
     CTYPE_INT,
     CTYPE_CHAR,
     CTYPE_STR,
+    CTYPE_PTR,
 };
+
+typedef struct Ctype {
+    int type;
+    struct Ctype *ptr;
+} Ctype;
 
 typedef struct Ast Ast;
 struct Ast {
@@ -104,6 +112,13 @@ static Ast *make_ast_char(char c) {
     r->type = AST_CHAR;
     r->ctype = CTYPE_CHAR;
     r->c = c;
+    return r;
+}
+
+static Ast *make_ptr_type(Ctype *ctype) {
+    Ctype *r = malloc(sizeof(Ctype));
+    r->type = CTYPE_PTR;
+    r->ptr = ctype;
     return r;
 }
 
@@ -310,6 +325,7 @@ static char result_type(char op, Ast *left, Ast *right) {
             break;
         case CTYPE_STR:
             var_str = find_var(left->sval);
+            printf("var_str:%s", left->sval);
             if(var_str) {
                 printf("sssssss");
             }

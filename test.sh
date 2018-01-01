@@ -19,5 +19,9 @@ testast "'b';"
 testast 'int a=3;'
 testast 'int a=4+8;'
 testast "char c='a';"
-testast 'int a;int b;'
+testast "int a;int b;a=b=10"
+testast "int a;int b;a=b='c'"
 testast '1*2+3;1+3;'
+testast 'int a=3;*&a;'
+testast 'int a=3;&a;'
+testast 'int a=3;int *b=&a;'

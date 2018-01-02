@@ -17,6 +17,12 @@ enum {
     AST_DECL,
     AST_ADDR,
     AST_DEREF,
+    AST_STRING,
+    AST_LVAR,
+    AST_LREF,
+    AST_GVAR,
+    AST_GREF,
+    AST_ARRAY_INIT,
 };
 
 enum {
@@ -30,6 +36,7 @@ enum {
 typedef struct Ctype {
     int type;
     struct Ctype *ptr;
+    int size;
 } Ctype;
 
 typedef struct Ast Ast;
@@ -50,6 +57,28 @@ struct Ast {
             int vpos;
             struct Ast *vnext;
         };
+        // local variable
+        struct {
+            char *lname;
+            int loff;
+        };  
+
+        // global variable
+        struct {
+            char *gname;
+            char *glabel;
+        };
+
+        // local reference
+        struct {
+            struct Ast *lref;
+            int lrefoff;
+        };
+        // global reference
+        struct {
+            struct Ast *gref;
+            int goff;
+        };
         struct {
             struct Ast *left;
             struct Ast *right;
@@ -63,6 +92,12 @@ struct Ast {
             struct Ast *decl_var;
             struct Ast *decl_init;
         };
+
+        // Array init
+        struct {
+            int size;
+            struct Ast **array_init;
+        };
         struct {
             struct Ast *operand;
         };
@@ -71,6 +106,10 @@ struct Ast {
 
 static Ast *vars = NULL;
 static Ast *strings = NULL;
+static Ast *globals = NULL;
+static Ast *locals = NULL;
+
+static int labelseq = 0;
 
 void emit_intexpr(Ast *ast);
 static Ast *read_symbol(char c);
@@ -80,6 +119,9 @@ static Ast *read_ident_or_func(char *c);
 static Ast *read_expr(void);
 static Ast *make_ast_up(Ast *init);
 static char result_type(char op, Ast *left, Ast *right);
+static Ctype *make_ptr_type(Ctype* ctype);
+static Ctype *make_array_type(Ctype *ctype, int size);
+static int ctype_size(Ctype *ctype);
 
 static Ctype *ctype_int = &(Ctype){CTYPE_INT, NULL};
 static Ctype *ctype_char = &(Ctype){CTYPE_CHAR, NULL};
@@ -91,6 +133,85 @@ static Ast *make_ast_op(char type, Ast *left, Ast *right) {
     r->ctype = result_type(type, left, right);
     r->left = left;
     r->right = right;
+
+    return r;
+}
+
+static *make_next_label(void) {
+    String *s = make_string();
+    string_appendf(s, ".L%d", labelseq++);
+    return get_cstring(s);
+}
+
+static Ast *ast_lvar(Ctype *ctype, char *name) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_LVAR;
+    r->lname = name;
+    r->next = NULL;
+
+    if(locals) {
+        Ast *p;
+        for(p = locals; p->next; p = p->next);
+        p->next = r;
+    } else {
+        locals = r;
+    }
+
+    return r;
+}
+
+static Ast *ast_lref(Ctype *ctype, Ast *lvar, int off) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_LREF;
+    r->ctype = ctype;
+    r->lref = lvar;
+    r->lrefoff = off;
+    return r;
+}
+
+static Ast *ast_gvar(Ctype *ctype, char *name, bool filelocal) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_GVAR;
+    r->ctype = ctype;
+    r->gname = name;
+    r->glabel = filelocal ? make_next_label() : name;
+    r->next = NULL;
+    if(globals) {
+        Ast *p;
+        for(p = locals; p->next; p = p->next);
+        p->next = r;
+    } else {
+        globals = r;
+    }
+    return r;
+}
+
+static Ast *ast_gref(Ctype *ctype, Ast *gvar, int off) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_GREF;
+    r->ctype = ctype;
+    r->gref = gvar;
+    r->goff = off;
+    return r;
+}
+
+static Ast *ast_string(char *str) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_STRING;
+    r->ctype = make_array_type(ctype_char, strlen(str) +1);
+    r->sval = str;
+    r->slabel = make_next_label();
+    r->next = globals;
+    globals = r;
+    return r;
+}
+
+static Ast *ast_array_init(int size, Ast **array_init) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_ARRAY_INIT;
+    r->ctype = NULL;
+    r->size = size;
+    r->array_init = array_init;
 
     return r;
 }
@@ -337,6 +458,10 @@ static Ast *read_decl(void) {
         return NULL;
     }
 
+    
+}
+
+static Ast *read_decl_array_initializer(Ctype *ctype) {
     
 }
 

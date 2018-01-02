@@ -10,6 +10,7 @@
 enum {
     AST_INT,
     AST_CHAR,
+    AST_LITERAL,
     AST_VAR,
     AST_STR,
     AST_FUNCALL,
@@ -34,7 +35,7 @@ typedef struct Ctype {
 typedef struct Ast Ast;
 struct Ast {
     char type;
-    char ctype;
+    Ctype *ctype;
     Ast *next;
     union {
         int ival;
@@ -62,6 +63,9 @@ struct Ast {
             struct Ast *decl_var;
             struct Ast *decl_init;
         };
+        struct {
+            struct Ast *operand;
+        };
     };
 };
 
@@ -77,6 +81,10 @@ static Ast *read_expr(void);
 static Ast *make_ast_up(Ast *init);
 static char result_type(char op, Ast *left, Ast *right);
 
+static Ctype *ctype_int = &(Ctype){CTYPE_INT, NULL};
+static Ctype *ctype_char = &(Ctype){CTYPE_CHAR, NULL};
+static Ctype *ctype_str = &(Ctype){CTYPE_STR, NULL};
+
 static Ast *make_ast_op(char type, Ast *left, Ast *right) {
     Ast *r = malloc(sizeof(Ast));
     r->type = type;
@@ -87,15 +95,24 @@ static Ast *make_ast_op(char type, Ast *left, Ast *right) {
     return r;
 }
 
+static Ast *make_ast_uop(char type Ctype *ctype, Ast *operand) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = type;
+    r->ctype = ctype;
+    r->ctype = ctype;
+    r->operand = operand;
+    return r;
+}
+
 static Ast *make_ast_int(int val) {
     Ast *r = malloc(sizeof(Ast));
-    r-> type = AST_INT;
-    r-> ctype = CTYPE_INT;
+    r-> type = AST_LITERAL;
+    r-> ctype = ctype_int;
     r->ival = val;
     return r;
 }
 
-static Ast *make_ast_var(int ctype, char *vname) {
+static Ast *make_ast_var(Ctype *ctype, char *vname) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_VAR;
     r->vname = vname;
@@ -109,8 +126,8 @@ static Ast *make_ast_var(int ctype, char *vname) {
 
 static Ast *make_ast_char(char c) {
     Ast *r = malloc(sizeof(Ast));
-    r->type = AST_CHAR;
-    r->ctype = CTYPE_CHAR;
+    r->type = AST_LITERAL;
+    r->ctype = ctype_char;
     r->c = c;
     return r;
 }
@@ -141,7 +158,7 @@ static Ast * make_arg() {
 static Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_FUNCALL;
-    r->ctype = CTYPE_INT;
+    r->ctype = ctype_int;
     r->fname = fname;
     r->nargs = nargs;
     r->args = args;
@@ -151,8 +168,8 @@ static Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
 
 static Ast *make_ast_string(char *str) {
     Ast *r = malloc(sizeof(Ast));
-    r->type = AST_STR;
-    r->ctype = CTYPE_STR;
+    r->type = AST_LITERAL;
+    r->ctype = ctype_str;
     r->sval = str;
     if(strings == NULL) {
         r->sid = 0;
@@ -169,6 +186,7 @@ static Ast *make_ast_string(char *str) {
 static Ast *make_ast_decl(Ast *var, Ast *init) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_DECL;
+    r->ctype = NULL;
     r->decl_var = var;
     r->decl_init = init ? init : NULL;
     return r;
@@ -204,6 +222,29 @@ static Ast *read_ident_or_func(char* c) {
     return v;
 }
 
+static void ensure_lvalue(Ast *ast) {
+    if(ast->type != AST_VAR)
+        perror("lvalue expected");
+}
+
+static Ast *read_unary_expr(void) {
+    Token *token = read_token();
+    if(is_punct(token, '&')) {
+        Ast *operand = read_unary_expr();
+        ensure_lvalue(operand);
+        return make_ast_uop(AST_ADDR, make_ptr_type(operand->ctype, operand), operand);
+    }
+    if(is_punct(token, '*')) {
+        Ast *operand = read_unary_expr();
+        if(operand->ctype->type != CTYPE_PTR)
+            perror("pointer type excepted!!!");
+
+        return make_ast_uop(AST_DEREF, operand->ctype->ptr, operand);
+    }
+    unget_token(token);
+    return read_prim();
+}
+
 static Ast *read_prim(void) {
     Token *token = read_token();
     switch(token->type) {
@@ -237,15 +278,15 @@ static int get_priority(char op) {
     } 
 }
 
-static int get_ctype(Token *token) {
+static Ctype *get_ctype(Token *token) {
     if(token->type != TTYPE_IDENT) 
-        return -1;
+        return NULL;
     if(!strcmp(token->sval, "int")) 
-        return CTYPE_INT;
+        return ctype_int;
     if(!strcmp(token->sval, "char"))
-        return CTYPE_CHAR;
+        return ctype_char;
     if(!strcmp(token->sval, "string"))
-        return CTYPE_STR;
+        return ctype_str;
 
     return -1;
 }

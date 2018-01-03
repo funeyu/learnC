@@ -8,21 +8,18 @@
 #define EXPR_LEN 100
 
 enum {
-    AST_INT,
-    AST_CHAR,
     AST_LITERAL,
-    AST_VAR,
-    AST_STR,
+    AST_STRING,
     AST_FUNCALL,
     AST_DECL,
     AST_ADDR,
     AST_DEREF,
-    AST_STRING,
     AST_LVAR,
     AST_LREF,
     AST_GVAR,
     AST_GREF,
     AST_ARRAY_INIT,
+    AST_IF,
 };
 
 enum {
@@ -45,17 +42,14 @@ struct Ast {
     Ctype *ctype;
     Ast *next;
     union {
+        // Integer
         int ival;
+        // Char
         char c;
+        // String
         struct {
             char *sval;
-            int sid;
-            struct Ast *snext;
-        };
-        struct {
-            char *vname;
-            int vpos;
-            struct Ast *vnext;
+            char *slabel;
         };
         // local variable
         struct {
@@ -79,27 +73,37 @@ struct Ast {
             struct Ast *gref;
             int goff;
         };
+        // Binary operator
         struct {
             struct Ast *left;
             struct Ast *right;
         };
+        // Function call
         struct {
             char *fname;
             int nargs;
             struct Ast **args;
         };
+        // Declaration
         struct {
             struct Ast *decl_var;
             struct Ast *decl_init;
         };
-
         // Array init
         struct {
             int size;
             struct Ast **array_init;
         };
+        // Unary operator
         struct {
             struct Ast *operand;
+        };
+
+        // If statement
+        struct {
+            struct Ast *cond;
+            struct Ast **then;
+            struct Ast **els;
         };
     };
 };
@@ -313,6 +317,15 @@ static Ast *make_ast_decl(Ast *var, Ast *init) {
     return r;
 }
 
+static Ast *ast_if(Ast *cond, Ast **then, Ast **els) {
+    Ast *r = malloc(sizeof(Ast));
+    r->type = AST_IF;
+    r->ctype = NULL;
+    r->cond = cond;
+    r->els = els;
+    return r;
+}
+
 static Ast *read_func_args(char *fname) {
     Ast **args = malloc(sizeof(Ast*) * (MAX_ARGS + 1));
     int i = 0, nargs = 0;
@@ -433,15 +446,21 @@ static char next_punct() {
     }
 }
 
+static Ast *read_decl_array_initializer(Ctype *ctype) {
+    Token *token = read_token();
+    
+}
+
 static Ast *read_decl(void) {
     Ast *init;
 
-    int ctype = get_ctype(read_token());
+    Ctype *ctype = get_ctype(read_token());
     Token *name = read_token();
-    if(name->type != TTYPE_IDENT) 
+    if(name->type != TTYPE_IDENT) {
         printf("Identifier expected");
-    Ast *var = make_ast_var(ctype, name->sval);
-
+        return NULL;
+    }
+    Token *varname = tok;
     char next_p = next_punct();
     if(next_p) {
         if(next_p == '=') {
@@ -458,10 +477,6 @@ static Ast *read_decl(void) {
         return NULL;
     }
 
-    
-}
-
-static Ast *read_decl_array_initializer(Ctype *ctype) {
     
 }
 

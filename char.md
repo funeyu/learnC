@@ -51,3 +51,10 @@ void init_list(Node **head, int data) {
 }
 init_list(&head, N);
 ```
+
+## 指针数组：
+``` c
+short a[] = {1, 3, 4};
+char s[4] = "abc";
+```
+注意第二种写法，char类型的数组，都会在最后加一个'\0'的结束符，所以是4不是3

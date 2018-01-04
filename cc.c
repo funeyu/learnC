@@ -56,13 +56,11 @@ struct Ast {
             char *lname;
             int loff;
         };  
-
         // global variable
         struct {
             char *gname;
             char *glabel;
         };
-
         // local reference
         struct {
             struct Ast *lref;
@@ -98,7 +96,6 @@ struct Ast {
         struct {
             struct Ast *operand;
         };
-
         // If statement
         struct {
             struct Ast *cond;
@@ -220,10 +217,9 @@ static Ast *ast_array_init(int size, Ast **array_init) {
     return r;
 }
 
-static Ast *make_ast_uop(char type Ctype *ctype, Ast *operand) {
+static Ast *make_ast_uop(char type, Ctype *ctype, Ast *operand) {
     Ast *r = malloc(sizeof(Ast));
     r->type = type;
-    r->ctype = ctype;
     r->ctype = ctype;
     r->operand = operand;
     return r;
@@ -237,18 +233,6 @@ static Ast *make_ast_int(int val) {
     return r;
 }
 
-static Ast *make_ast_var(Ctype *ctype, char *vname) {
-    Ast *r = malloc(sizeof(Ast));
-    r->type = AST_VAR;
-    r->vname = vname;
-    r->ctype = ctype;
-    r->vpos = vars ? vars->vpos + 1 : 1;
-    r->vnext = vars;
-    vars = r;
-
-    return r;
-}
-
 static Ast *make_ast_char(char c) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_LITERAL;
@@ -257,7 +241,7 @@ static Ast *make_ast_char(char c) {
     return r;
 }
 
-static Ast *make_ptr_type(Ctype *ctype) {
+static Ctype *make_ptr_type(Ctype *ctype) {
     Ctype *r = malloc(sizeof(Ctype));
     r->type = CTYPE_PTR;
     r->ptr = ctype;
@@ -265,10 +249,15 @@ static Ast *make_ptr_type(Ctype *ctype) {
 }
 
 static Ast *find_var(char *name) {
-    for(Ast *v = vars; v; v = v->vnext) {
-        if(!strcmp(name, v->vname)) {
+    for(Ast *v = locals; v; v = v->next) {
+        if(!strcmp(name, v->lname)) {
             return v;
         }
+    }
+
+    for(Ast *p = globals; p; p = p->next) {
+        if(!strcmp(name, p->gname))
+            return p;
     }
 
     return NULL;
@@ -277,7 +266,7 @@ static Ast *find_var(char *name) {
 static Ast * make_arg() {
     Token *name = read_token();
     // todo: 函数参数得需要有类型的
-    return make_ast_var(CTYPE_VOID, name->sval);
+    return read_prim();
 }
 
 static Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
@@ -293,25 +282,20 @@ static Ast *make_ast_funcall(char *fname, int nargs, Ast **args) {
 
 static Ast *make_ast_string(char *str) {
     Ast *r = malloc(sizeof(Ast));
-    r->type = AST_LITERAL;
+    r->type = AST_STRING;
     r->ctype = ctype_str;
     r->sval = str;
-    if(strings == NULL) {
-        r->sid = 0;
-        r->snext = NULL;
-    } else {
-        r->sid = strings->sid + 1;
-        r->snext = strings;
-    }
+    r->slabel = make_next_label();
+    r->next = globals;
 
-    strings = r;
+    globals = r;
     return r;
 }
 
-static Ast *make_ast_decl(Ast *var, Ast *init) {
+static Ast *make_ast_decl(Ast *var, Ast *init, Ctype *ctype) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_DECL;
-    r->ctype = NULL;
+    r->ctype = ctype;
     r->decl_var = var;
     r->decl_init = init ? init : NULL;
     return r;
@@ -357,7 +341,7 @@ static Ast *read_ident_or_func(char* c) {
 }
 
 static void ensure_lvalue(Ast *ast) {
-    if(ast->type != AST_VAR)
+    if(ast->type != AST_LITERAL)
         perror("lvalue expected");
 }
 
@@ -366,7 +350,7 @@ static Ast *read_unary_expr(void) {
     if(is_punct(token, '&')) {
         Ast *operand = read_unary_expr();
         ensure_lvalue(operand);
-        return make_ast_uop(AST_ADDR, make_ptr_type(operand->ctype, operand), operand);
+        return make_ast_uop(AST_ADDR, make_ptr_type(operand->ctype), operand);
     }
     if(is_punct(token, '*')) {
         Ast *operand = read_unary_expr();
@@ -455,21 +439,33 @@ static Ast *read_decl(void) {
     Ast *init;
 
     Ctype *ctype = get_ctype(read_token());
-    Token *name = read_token();
-    if(name->type != TTYPE_IDENT) {
+    Token *token;
+    for(;;) {
+        token = read_token();
+        if(!is_punct(token, "*"))
+            break;
+        ctype = make_ptr_type(ctype);
+    }
+
+    if(token->type != TTYPE_IDENT) {
         printf("Identifier expected");
         return NULL;
     }
-    Token *varname = tok;
+
     char next_p = next_punct();
     if(next_p) {
         if(next_p == '=') {
             Ast *left = read_prim();
             init = make_ast_up(left);
 
-            return make_ast_decl(var, init);
-        } else if(next_p == ';') {// 没有初始值的申明
-            return make_ast_decl(var, init);
+            return make_ast_decl(token, init, ctype);
+        } else if(next_p == ';') { // 没有初始值的申明
+            return make_ast_decl(token, init, ctype);
+        } else if(next_p == '[') { //
+            // 先读取数字
+            Token *num = read_token();
+            ctype->size = num->ival;
+            printf("size: %s\n", ctype->size);
         }
         return NULL;
     } else {
@@ -483,11 +479,11 @@ static Ast *read_decl(void) {
 static char result_type(char op, Ast *left, Ast *right) {
     Ast *var_str;
 
-    switch(left->ctype) {
+    switch(left->ctype->type) {
         case CTYPE_VOID:
             goto err;
         case CTYPE_INT:
-            switch(right->ctype) {
+            switch(right->ctype->type) {
                 case CTYPE_INT:
                 case CTYPE_CHAR:
                     return CTYPE_INT;
@@ -496,7 +492,7 @@ static char result_type(char op, Ast *left, Ast *right) {
             }
             break;
         case CTYPE_CHAR:
-            switch(right->ctype) {
+            switch(right->ctype->type) {
                 case CTYPE_CHAR:
                     return CTYPE_CHAR;
                 case CTYPE_STR:
@@ -585,9 +581,6 @@ static void print_ast(Ast *ast) {
         case '=':
             printf("(=");
             goto printf_op;
-        case AST_CHAR:
-            printf("'%c'", ast->c);
-            break;
         case AST_FUNCALL:
             printf("%s(", ast->fname);
             for (int i = 0; i < ast->nargs; i ++) {
@@ -600,7 +593,7 @@ static void print_ast(Ast *ast) {
             }
             printf(")");
             break;
-        case AST_STR:
+        case AST_STRING:
             printf("\"");
             print_quote(ast-> sval);
             printf("\"");
@@ -611,16 +604,13 @@ static void print_ast(Ast *ast) {
 			print_ast(ast->right);
 			printf(")");
 			break;
-		case AST_INT:
+		case AST_LITERAL:
 			printf("%d", ast->ival);
-			break;
-		case AST_VAR:
-			printf("%s", ast->vname);
 			break;
         case AST_DECL:
             printf("(decl %s %s ",
                 ctype_to_string(ast->decl_var->ctype),
-                ast->decl_var->vname);
+                ast->decl_var->sval);
             if(ast->decl_init)
                 print_ast(ast->decl_init);
             printf(")");

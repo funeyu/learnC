@@ -119,7 +119,7 @@ static Ast *read_prim(void);
 static Ast *read_ident_or_func(char *c);
 static Ast *read_expr(void);
 static Ast *make_ast_up(Ast *init);
-static char result_type(char op, Ast *left, Ast *right);
+static Ctype *result_type(char op, Ast *left, Ast *right);
 static Ctype *make_ptr_type(Ctype* ctype);
 static Ctype *make_array_type(Ctype *ctype, int size);
 static int ctype_size(Ctype *ctype);
@@ -138,7 +138,7 @@ static Ast *make_ast_op(char type, Ast *left, Ast *right) {
     return r;
 }
 
-static *make_next_label(void) {
+static char *make_next_label(void) {
     String *s = make_string();
     string_appendf(s, ".L%d", labelseq++);
     return get_cstring(s);
@@ -336,7 +336,6 @@ static Ast *read_ident_or_func(char* c) {
 
     unget_token(token);
     Ast *v = find_var(c);
-    if(!v) v = make_ast_var(CTYPE_VOID, c);
     return v;
 }
 
@@ -406,11 +405,11 @@ static Ctype *get_ctype(Token *token) {
     if(!strcmp(token->sval, "string"))
         return ctype_str;
 
-    return -1;
+    return NULL;
 }
 
 static bool is_type_keyword(Token *token) {
-    return get_ctype(token) != -1;
+    return get_ctype(token) != NULL;
 }
 
 
@@ -432,7 +431,7 @@ static char next_punct() {
 
 static Ast *read_decl_array_initializer(Ctype *ctype) {
     Token *token = read_token();
-    
+    return NULL;
 }
 
 static Ast *read_decl(void) {
@@ -442,7 +441,7 @@ static Ast *read_decl(void) {
     Token *token;
     for(;;) {
         token = read_token();
-        if(!is_punct(token, "*"))
+        if(!is_punct(token, '*'))
             break;
         ctype = make_ptr_type(ctype);
     }
@@ -458,14 +457,15 @@ static Ast *read_decl(void) {
             Ast *left = read_prim();
             init = make_ast_up(left);
 
-            return make_ast_decl(token, init, ctype);
+            return make_ast_decl(NULL, init, ctype);
         } else if(next_p == ';') { // 没有初始值的申明
-            return make_ast_decl(token, init, ctype);
+            return make_ast_decl(NULL, init, ctype);
         } else if(next_p == '[') { //
             // 先读取数字
             Token *num = read_token();
             ctype->size = num->ival;
-            printf("size: %s\n", ctype->size);
+            expect(']');
+            return read_decl_array_initializer(ctype);
         }
         return NULL;
     } else {
@@ -476,7 +476,7 @@ static Ast *read_decl(void) {
     
 }
 
-static char result_type(char op, Ast *left, Ast *right) {
+static Ctype *result_type(char op, Ast *left, Ast *right) {
     Ast *var_str;
 
     switch(left->ctype->type) {
@@ -486,7 +486,7 @@ static char result_type(char op, Ast *left, Ast *right) {
             switch(right->ctype->type) {
                 case CTYPE_INT:
                 case CTYPE_CHAR:
-                    return CTYPE_INT;
+                    return ctype_int;
                 case CTYPE_STR:
                     goto err;
             }
@@ -494,7 +494,7 @@ static char result_type(char op, Ast *left, Ast *right) {
         case CTYPE_CHAR:
             switch(right->ctype->type) {
                 case CTYPE_CHAR:
-                    return CTYPE_CHAR;
+                    return ctype_char;
                 case CTYPE_STR:
                 case CTYPE_INT:
                     goto err;
@@ -506,7 +506,7 @@ static char result_type(char op, Ast *left, Ast *right) {
             if(var_str) {
                 printf("sssssss");
             }
-            return CTYPE_INT;
+            return ctype_str;
             // goto err;
         default:
             perror("internal error!");
@@ -515,7 +515,7 @@ static char result_type(char op, Ast *left, Ast *right) {
 
     err:
         perror("incompatible operands");
-        return (char)0;
+        return NULL;
 }
 
 static Ast *make_ast_up(Ast *ast) {
@@ -539,8 +539,8 @@ static Ast *make_ast_up(Ast *ast) {
     }
 }
 
-static char *ctype_to_string(int ctype) {
-    switch(ctype) {
+static char *ctype_to_string(Ctype *ctype) {
+    switch(ctype->type) {
         case CTYPE_VOID: 
             return "void";
         case CTYPE_INT:
@@ -550,7 +550,7 @@ static char *ctype_to_string(int ctype) {
         case CTYPE_STR:
             return "string";
         default:
-            printf("Unknown ctype: %d", ctype);
+            printf("Unknown ctype: %d", ctype->type);
             return NULL;
     }
 }

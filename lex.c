@@ -81,6 +81,12 @@ err:
 	return NULL;
 }
 
+Token *peek_token(void) {
+	Token *token = read_token();
+	unget_token(token);
+	return token;
+}
+
 static Token *read_string(void) {
 	String *s = make_string();
 	for(;;) {

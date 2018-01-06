@@ -27,4 +27,5 @@ make -s cc
 # testast 'int a=3;int *b=&a;'
 # testast 'char s[4]="abc";'
 # testast 'char *s="abc"'
-testast 'int varaaa[3]={1,2,3};'
+# testast 'int varaaa[3]={1,2,3};'
+testast 'if(1){2;}else{3;}'

@@ -473,6 +473,47 @@ static Ast *read_decl_array_initializer(Ctype *ctype) {
     return NULL;
 }
 
+static Ast *read_stmt(void) {
+    Token *token = read_token();
+    if(token->type == TTYPE_IDENT && !strcmp(token->sval, "if")) 
+        return read_if_stmt();
+    unget_token(token);
+    Ast *r = read_prim();
+    *r = make_ast_up(r);
+
+    return r;
+}
+
+static Ast *read_decl_or_stmt(void) {
+    Token *token = peek_token();
+    if(!token) return NULL;
+
+    return is_type_keyword(token) ? read_decl() : read_stmt();
+}
+
+Ast **read_block(void) {
+    Ast **stmts = malloc(sizeof(Ast **) * EXPR_LEN);
+    int i;
+    for(i = 0; i < EXPR_LEN - 1; i ++) {
+        stmts[i] = read_decl_or_stmt();
+        Token *to = peek_token();
+        if(!stmts[i] || is_punct(to, '}'))
+            break;
+    }
+    stmts[i + 1] = NULL;
+    return stmts;
+}
+
+static Ast *read_if_stmt(void) {
+    expect('(');
+    Ast *cond = read_prim();
+    cond = make_ast_up(cond);
+    expect(')');
+    expect('{');
+
+}
+
+
 static Ast *read_decl(void) {
     Ast *init;
 
@@ -572,6 +613,10 @@ static Ast *make_ast_up(Ast *ast) {
         return ast;
     }
     int c = type->punct;
+    if(get_priority(c) < 0) {
+        unget_token(type);
+        return ast;
+    }
 
     Ast *right = read_prim();
     Token *next_op = read_token();

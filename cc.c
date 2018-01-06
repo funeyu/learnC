@@ -26,6 +26,7 @@ enum {
     CTYPE_VOID,
     CTYPE_INT,
     CTYPE_CHAR,
+    CTYPE_ARRAY,
     CTYPE_STR,
     CTYPE_PTR,
 };
@@ -144,9 +145,19 @@ static char *make_next_label(void) {
     return get_cstring(s);
 }
 
+static Ctype *make_array_type(Ctype *ctype, int size) {
+    Ctype *r = malloc(sizeof(Ctype));
+    r->type = CTYPE_ARRAY;
+    r->ptr = ctype;
+    r->size = size;
+
+    return r;
+}
+
 static Ast *ast_lvar(Ctype *ctype, char *name) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_LVAR;
+    r->ctype = ctype;
     r->lname = name;
     r->next = NULL;
 
@@ -207,10 +218,10 @@ static Ast *ast_string(char *str) {
     return r;
 }
 
-static Ast *ast_array_init(int size, Ast **array_init) {
+static Ast *ast_array_init(int size, Ast **array_init, Ctype *ctype) {
     Ast *r = malloc(sizeof(Ast));
     r->type = AST_ARRAY_INIT;
-    r->ctype = NULL;
+    r->ctype = ctype;
     r->size = size;
     r->array_init = array_init;
 
@@ -398,8 +409,9 @@ static int get_priority(char op) {
 static Ctype *get_ctype(Token *token) {
     if(token->type != TTYPE_IDENT) 
         return NULL;
-    if(!strcmp(token->sval, "int")) 
+    if(!strcmp(token->sval, "int")){
         return ctype_int;
+    }
     if(!strcmp(token->sval, "char"))
         return ctype_char;
     if(!strcmp(token->sval, "string"))
@@ -431,6 +443,33 @@ static char next_punct() {
 
 static Ast *read_decl_array_initializer(Ctype *ctype) {
     Token *token = read_token();
+    if(is_punct(token, '"')) {
+
+    }
+    if(is_punct(token, '{')) {
+        printf("%s\n", "read_decl_array_initializer");
+        printf("size::::%d\n", ctype->size);
+        Ast **init = malloc(sizeof(Ast) * ctype->size);
+
+        for(int i = 0; i < ctype->size; i++) {
+            Ast *a = read_prim();
+            init[i] = make_ast_up(a);
+            // todo 校验type类型
+            Token *next = read_token();
+
+            if(is_punct(next, '}')) {
+                printf("%s\n", "finise");
+                if(ctype->size == i) {
+                    break;
+                }
+            } else {
+                unget_token(next);
+            }
+        }
+
+        return ast_array_init(ctype->size, init, ctype);
+    }
+
     return NULL;
 }
 
@@ -457,15 +496,19 @@ static Ast *read_decl(void) {
             Ast *left = read_prim();
             init = make_ast_up(left);
 
-            return make_ast_decl(NULL, init, ctype);
+            return make_ast_decl(left, init, ctype);
         } else if(next_p == ';') { // 没有初始值的申明
-            return make_ast_decl(NULL, init, ctype);
-        } else if(next_p == '[') { //
+            Ast *left = read_prim();
+            return make_ast_decl(left, init, ctype);
+        } else if(next_p == '[') { // 数组
             // 先读取数字
             Token *num = read_token();
-            ctype->size = num->ival;
+            Ctype *array_type = make_array_type(ctype, num->ival);
+            Ast *var = ast_lvar(ctype, token->sval);
+            printf("read_array size: %d\n", num->ival);
             expect(']');
-            return read_decl_array_initializer(ctype);
+            expect('='); // 这里暂时只支持一元数组
+            return make_ast_decl(var, read_decl_array_initializer(array_type), ctype);
         }
         return NULL;
     } else {
@@ -473,7 +516,7 @@ static Ast *read_decl(void) {
         return NULL;
     }
 
-    
+    return NULL;
 }
 
 static Ctype *result_type(char op, Ast *left, Ast *right) {
@@ -521,7 +564,11 @@ static Ctype *result_type(char op, Ast *left, Ast *right) {
 static Ast *make_ast_up(Ast *ast) {
 
     Token *type = read_token();
-    if (type == NULL || is_punct(type, ';')) {
+    if (type == NULL || is_punct(type, ';') || is_punct(type, ',') || is_punct(type, '}')) {
+        if(is_punct(type, '}')) {
+            unget_token(type);
+        }
+
         return ast;
     }
     int c = type->punct;
@@ -549,6 +596,8 @@ static char *ctype_to_string(Ctype *ctype) {
             return "char";
         case CTYPE_STR:
             return "string";
+        case CTYPE_ARRAY:
+            return "int[3]";
         default:
             printf("Unknown ctype: %d", ctype->type);
             return NULL;
@@ -615,6 +664,16 @@ static void print_ast(Ast *ast) {
                 print_ast(ast->decl_init);
             printf(")");
             break;
+        case AST_ARRAY_INIT:
+            printf("{");
+            for(int i = 0; ast->array_init[i]; i ++) {
+                if(i != 0) {
+                    printf(",");
+                }
+                printf("%d", ast->array_init[i]->ival);
+            }
+            printf("}");
+            break;
 		default:
 		  printf("should not reach here!");
 
@@ -627,13 +686,15 @@ int main(int argc, char **arg) {
     Ast *r;
     Ast *expressions[EXPR_LEN];
     int nexpr = 0;
+    Token *begin;
+
     for(;;) {
-        Token *begin = read_token();
-        if(!begin)
+        begin = read_token();
+        if(!begin || is_punct(begin, ';'))
             break;
-        unget_token(begin);
 
         if(is_type_keyword(begin)) {
+            unget_token(begin);
             r = read_decl();
         } else {
             Ast *left = read_prim();

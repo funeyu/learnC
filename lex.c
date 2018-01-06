@@ -178,6 +178,12 @@ bool is_punct(Token *tok, char c) {
 	return tok->type == TTYPE_PUNCT && tok->punct == c;
 }
 
+bool is_one_punct(Token *tok) {
+	if(!tok)
+		return false;
+	return tok->type == TTYPE_PUNCT;
+}
+
 void unget_token(Token *tok) {
 	if(ungotten) 
 		perror("push back buffer is all");

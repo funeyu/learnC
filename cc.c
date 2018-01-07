@@ -423,7 +423,7 @@ static Ctype *get_ctype(Token *token) {
 }
 
 static bool is_type_keyword(Token *token) {
-    return get_ctype(token) != NULL || !strcmp(token->sval, "if");
+    return get_ctype(token) != NULL ;
 }
 
 
@@ -477,8 +477,11 @@ static Ast *read_decl_array_initializer(Ctype *ctype) {
 
 static Ast *read_stmt(void) {
     Token *token = read_token();
-    if(token->type == TTYPE_IDENT && !strcmp(token->sval, "if")) 
+    if(token->type == TTYPE_IDENT && !strcmp(token->sval, "if")) {
+        printf("%s\n", "read_if_stmt");
         return read_if_stmt();
+    }
+        
     unget_token(token);
     Ast *r = read_prim();
     r = make_ast_up(r);
@@ -489,7 +492,7 @@ static Ast *read_stmt(void) {
 static Ast *read_decl_or_stmt(void) {
     Token *token = peek_token();
     if(!token) return NULL;
-
+    printf("%s\n", "read_null");
     return is_type_keyword(token) ? read_decl() : read_stmt();
 }
 
@@ -766,11 +769,12 @@ int main(int argc, char **arg) {
         if(!begin || is_punct(begin, ';'))
             break;
 
-        if(is_type_keyword(begin)) {
+        if(is_type_keyword(begin) || !strcmp(begin->sval, "if")) {
             printf("%s\n", "is_type_keyword");
 
             unget_token(begin);
             r = read_decl_or_stmt();
+            expressions[nexpr++] = r;
             break;
         } else {
             Ast *left = read_prim();

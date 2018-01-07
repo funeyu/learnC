@@ -118,7 +118,9 @@ static Ast *read_symbol(char c);
 static Ast *read_string(void);
 static Ast *read_prim(void);
 static Ast *read_ident_or_func(char *c);
+static Ast *read_if_stmt(void);
 static Ast *read_expr(void);
+static Ast *read_decl(void);
 static Ast *make_ast_up(Ast *init);
 static Ctype *result_type(char op, Ast *left, Ast *right);
 static Ctype *make_ptr_type(Ctype* ctype);
@@ -421,7 +423,7 @@ static Ctype *get_ctype(Token *token) {
 }
 
 static bool is_type_keyword(Token *token) {
-    return get_ctype(token) != NULL;
+    return get_ctype(token) != NULL || !strcmp(token->sval, "if");
 }
 
 
@@ -479,7 +481,7 @@ static Ast *read_stmt(void) {
         return read_if_stmt();
     unget_token(token);
     Ast *r = read_prim();
-    *r = make_ast_up(r);
+    r = make_ast_up(r);
 
     return r;
 }
@@ -491,7 +493,7 @@ static Ast *read_decl_or_stmt(void) {
     return is_type_keyword(token) ? read_decl() : read_stmt();
 }
 
-Ast **read_block(void) {
+static Ast **read_block(void) {
     Ast **stmts = malloc(sizeof(Ast **) * EXPR_LEN);
     int i;
     for(i = 0; i < EXPR_LEN - 1; i ++) {
@@ -510,7 +512,19 @@ static Ast *read_if_stmt(void) {
     cond = make_ast_up(cond);
     expect(')');
     expect('{');
+    Ast **then = read_block();
+    expect('}');
 
+    Token *tok = read_token();
+    if(!tok  || tok->type != TTYPE_IDENT || strcmp(tok->sval, "else")) {
+        unget_token(tok);
+        return ast_if(cond, then, NULL);
+    }
+    expect('{');
+    Ast **els = read_block();
+    expect('}');
+
+    return ast_if(cond, then, els);
 }
 
 
@@ -648,6 +662,7 @@ static char *ctype_to_string(Ctype *ctype) {
             return NULL;
     }
 }
+
 static void print_quote(char *p) {
     while(*p) {
         if(*p == '\"' || *p == '\\') 
@@ -655,6 +670,16 @@ static void print_quote(char *p) {
         printf("%c", *p);
         p++;
     }
+}
+
+char *block_to_string(Ast **block) {
+    String *s = make_string();
+    string_appendf(s, "{");
+    for(int i = 0; block[i]; i++) {
+
+    }
+
+    return NULL;
 }
 
 static void print_ast(Ast *ast) {
@@ -719,6 +744,9 @@ static void print_ast(Ast *ast) {
             }
             printf("}");
             break;
+        case AST_IF:
+            printf("if");
+            break;
 		default:
 		  printf("should not reach here!");
 
@@ -739,8 +767,11 @@ int main(int argc, char **arg) {
             break;
 
         if(is_type_keyword(begin)) {
+            printf("%s\n", "is_type_keyword");
+
             unget_token(begin);
-            r = read_decl();
+            r = read_decl_or_stmt();
+            break;
         } else {
             Ast *left = read_prim();
             r = make_ast_up(left);
